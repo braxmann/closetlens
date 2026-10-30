@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Eigene Fotos und alles, was daraus entsteht – bleibt lokal
+daten/
+ausgabe/
+*.db
+*.sqlite
+
+# Modellgewichte
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.task
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/

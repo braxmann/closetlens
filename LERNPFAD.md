@@ -1,0 +1,156 @@
+# Lernpfad: Digitaler Kleiderschrank
+
+Vom Kleidungsfoto bis zum Outfit am eigenen 3D-Avatar, in Stufen, die jede für sich vorzeigbar sind.
+Vorgänger und Lernarchiv: `VisionLLMmini` (YOLO-Kaskade, Pose, MediaPipe-Hände, VLM per Ollama, Threads).
+
+## So arbeiten wir
+
+Jeder Schritt läuft so ab: **Lesen** (mit Leitfrage) → **Vorhersage** (im Kopf) → **Teilaufgabe** (du schreibst) →
+**Review** (Rückfragen, abgestufte Hinweise) → **Experiment**.
+Wird eine Phase übersprungen, gibt es einen Hinweis.
+
+Vor jeder größeren Stufe recherchieren wir kurz den aktuellen Stand, den VRAM-Bedarf und die Lizenzen, weil sich das Feld schnell bewegt.
+
+## Rahmen
+
+- **Hardware:** Der Windows-PC (NVIDIA, 8 GB VRAM) ist der Server im Heimnetz. MacBook (Apple Silicon) und Smartphone sind Clients.
+  Entwickelt wird auf beiden.
+- **Modelle:** lokal bevorzugt. Cloud-GPUs und Ollama-Cloud nur für Fotos von mir, **nie** für Fotos anderer Personen.
+  Biometrische Identifikation nur bei mir selbst.
+- **Kein Login**, nur im Heimnetz. Fernzugriff später eventuell über Tailscale.
+- **Architektur:** siehe [README.md](README.md). Modelle stecken hinter Schnittstellen; API, Jobs, Speicher und Frontend sind getrennt.
+- **Tests** mit pytest ab M2.
+
+---
+
+## Übersicht
+
+| Stufe | Meilenstein | Ergebnis |
+|---|---|---|
+| 1 Kleiderschrank | **M1** Freistellen + Beschreiben | `analysiere.py foto.jpg` → PNG + JSON |
+| | **M2** Backend + Jobs + Tests | Upload per API, Attribute landen in SQLite |
+| | **M3** Mobile Web-Frontend (Retro) | Am Handy fotografieren → Teil erscheint im Schrank |
+| 2 Training + Data Science | **M4** Testdatensatz + VLM messen | Genauigkeit pro Attribut, die Messlatte |
+| | **M5** Embeddings | Ähnliche Teile, Textsuche, Zero-Shot |
+| | **M6** Eigener Klassifikator | Eigenes Modell vs. VLM auf demselben Testset |
+| | **M7** Verkleinern | Genauigkeit vs. Größe vs. Latenz |
+| | **M8** Outfits + Auswertungen | Vorschläge, „was ziehe ich nie an“ |
+| 3 2D-Anprobe | **M9** Try-on auf meinem Foto | Outfit wählen → Bild von mir darin |
+| 4 Avatar | **M10** 3D-Avatar im Browser | drehbarer Avatar *(grob, nach Recherche)* |
+| 5 Outfit am Avatar | **M11** Outfit am Avatar | 2D-Anprobe → Avatar *(grob, nach Recherche)* |
+
+Laufend, nach jeder Stufe: README, Architekturdiagramm und Demo-GIF ergänzen.
+Die Auswertung aus M4, M6 und M7 wird der Kern des Portfolios.
+
+---
+
+## Stufe 1 – Kleiderschrank
+
+### M1 – Foto freistellen und beschreiben (1–2 Sessions)
+
+**Lernziel:** das erste lauffähige Stück der Pipeline, von Anfang an hinter Schnittstellen.
+**Neu:** Segmentierung vs. Matting, Alphakanal, `typing.Protocol`, eine feste Taxonomie im Schema.
+**Fertig, wenn:** Aus 5 eigenen Kleidungsfotos werden 5 freigestellte PNGs und 5 JSON-Dateien mit plausiblen Attributen.
+
+#### Schritt 0 – Einrichtung
+Venv anlegen und `requirements.txt` installieren (siehe README). Fotografier 5 Kleidungsstücke:
+eins flach auf dem Boden, eins auf dem Bügel, eins mit Muster, eins dunkel auf dunklem Grund und eins, wie du willst.
+Leg die Fotos nach `daten/fotos/`. Der Ordner ist in der `.gitignore`.
+
+#### Schritt 1 – Freistellen ausprobieren, noch ohne eigenen Code
+Lesen: die README von [rembg](https://github.com/danielgatis/rembg), nur die Abschnitte zu CLI, Python-Nutzung und Modellen.
+- Leitfragen: Was ist der Unterschied zwischen **Segmentierung** (jedes Pixel bekommt eine Klasse) und **Matting**
+  (jedes Pixel bekommt eine Deckkraft von 0–1)? Warum ist das bei Haaren, Fransen oder Strick wichtig?
+- Vorhersage: Welches deiner 5 Fotos wird am schlechtesten freigestellt?
+- Aufgabe: Stell dasselbe Foto mit der CLI und 3 Modellen frei, z. B. `u2net`, `isnet-general-use` und `birefnet-general`.
+  Vergleich Ergebnis und Zeit.
+- Experiment: `u2net_cloth_seg` ist auf Kleidung spezialisiert. Was macht es anders?
+
+#### Schritt 2 – Schnittstelle `Freisteller`
+Lesen: [typing.Protocol](https://docs.python.org/3/library/typing.html#typing.Protocol), nur die Einleitung und das erste Beispiel.
+- Leitfrage: Worin unterscheidet sich ein `Protocol` von einer Basisklasse mit Vererbung? Warum ist das für Fakes in Tests praktisch?
+- Aufgabe: In `kleiderschrank/modelle/` ein Protocol `Freisteller` mit **einer** Methode (Eingabe: Bild, Ausgabe: Bild mit Alphakanal)
+  und eine Implementierung mit rembg. Das Modell wird **einmal** geladen, nicht bei jedem Aufruf.
+  Tipp: `new_session` in der rembg-README.
+
+#### Schritt 3 – Taxonomie und Schema
+Die wichtigste Design-Entscheidung von M1, denn auf diesem Schema bauen M4 und M6 auf.
+- Leitfrage: Warum sind feste Werte (`Literal["T-Shirt", "Hemd", ...]`) besser als freier Text, sobald du später **messen** und **trainieren** willst?
+- Aufgabe: Ein pydantic-Schema `KleidungsAttribute` mit Art, Hauptfarbe, Muster und Saison (mehrere möglich?), dazu optional
+  Material und Formalität. Leg die Werte bewusst fest. Wenige, klar trennbare Klassen sind besser als viele unscharfe.
+- Erinnerung aus VisionLLMmini: Die Reihenfolge der Felder zählt, und Prompt und Schema müssen dieselben Namen verwenden.
+
+#### Schritt 4 – Schnittstelle `AttributErkenner` + VLM-Implementierung
+Gleiches Muster wie `frage_vlm` aus `vlm_hand.py`, aber jetzt hinter einem Protocol.
+- Vorhersage: Was passiert, wenn du ein freigestelltes PNG mit transparentem Hintergrund als **JPEG** ans VLM schickst?
+- Aufgabe: Protocol plus Ollama-Implementierung, mit dem Modellnamen als Parameter.
+- Experiment: Originalfoto vs. freigestellt auf weißem vs. freigestellt auf grauem Hintergrund. Welche Variante beschreibt das VLM am besten?
+
+#### Schritt 5 – `skripte/analysiere.py`
+- Lesen: [argparse-Tutorial](https://docs.python.org/3/howto/argparse.html), nur die ersten Abschnitte.
+- Aufgabe: `analysiere.py foto.jpg [weitere.jpg ...]` stellt frei, beschreibt und schreibt `ausgabe/<name>.png` und `ausgabe/<name>.json`.
+  Das Skript kennt nur die Schnittstellen. Welche Implementierung benutzt wird, entscheidet **eine** Stelle im Skript.
+- Fertig-Check: die 5 Fotos aus Schritt 0. Notier dir, wo das VLM danebenliegt. Das ist dein erster Eindruck für M4.
+
+### M2 – Backend mit Hintergrund-Jobs und Tests (2–3 Sessions)
+**Neu:** SQLModel/SQLite, Dateiablage, Dependency Injection in FastAPI, Job-Warteschlange mit Status, pytest mit Fakes, `TestClient`.
+**Du baust:** Endpunkte zum Hochladen, Auflisten, Abrufen und Korrigieren eines Teils, und einen GPU-Worker, der Jobs nacheinander abarbeitet.
+**Fertig, wenn:** `pytest` durchläuft (mit Fake-Modellen, ohne GPU) und ein Upload per curl nach ein paar Sekunden Attribute in der DB hat.
+
+### M3 – Mobile Web-Frontend im Retro-Look (2 Sessions)
+**Neu:** mobile-first CSS, Kamera-Upload im Browser (`<input type="file" accept="image/*" capture>`), Status-Polling, Zugriff im Heimnetz.
+**Design:** schlicht gebaut (FastAPI-Templates + htmx oder Vanilla JS), aber mit eigenem Charakter, z. B. Retro-OS, Pixel-Schrift
+oder Kaufhauskatalog. Die Richtung legen wir zu Beginn von M3 fest.
+**Du baust:** Galerie, Filter, Detailansicht mit **Korrigieren der Attribute**. Die Korrekturen sind später dein Ground Truth.
+**Fertig, wenn:** Du am Handy ein Teil fotografierst und es freigestellt und beschrieben im Schrank erscheint.
+
+## Stufe 2 – Eigenes Training und Data Science
+
+### M4 – Testdatensatz und VLM-Auswertung (1–2 Sessions)
+**Neu:** train/val/test-Split, Leakage (alle Fotos desselben Teils gehören in denselben Split), Klassen-Ungleichgewicht,
+Macro-F1, Konfusionsmatrix.
+**Fertig, wenn:** Es eine Tabelle mit der VLM-Genauigkeit pro Attribut gibt. Sie ist die Messlatte für alles Weitere.
+
+### M5 – Embeddings: Ähnlichkeit und Textsuche (2 Sessions)
+**Neu:** Embedding-Raum, Kosinus-Ähnlichkeit, Normalisierung, Zero-Shot-Klassifikation, Vektorsuche.
+**Kandidat:** Marqo-FashionSigLIP (Apache-2.0). Vorher prüfen, ob es Nachfolger gibt.
+**Fertig, wenn:** „Ähnliche Teile“ und eine Suche wie „blaues Leinenhemd“ funktionieren und die Zero-Shot-Zahlen neben den VLM-Zahlen stehen.
+
+### M6 – Eigener Attribut-Klassifikator (3 Sessions)
+**Neu:** Transfer Learning, Linear Probe auf Embeddings (zuerst!), Feintuning eines kleinen Backbones, Augmentation, Overfitting.
+Lizenzen öffentlicher Mode-Datensätze vorher prüfen.
+**Fertig, wenn:** Eigenes Modell und VLM auf demselben Testset verglichen sind: Genauigkeit, Latenz, VRAM.
+Dein Modell ist eine weitere Implementierung von `AttributErkenner`.
+
+### M7 – Verkleinern (1–2 Sessions)
+**Neu:** Quantisierung (z. B. int8 mit ONNX Runtime), Distillation (das VLM als Lehrer).
+**Fertig, wenn:** Eine Tabelle oder Kurve zeigt, was dich jedes eingesparte MB an Genauigkeit kostet.
+
+### M8 – Outfits und Auswertungen (2 Sessions)
+**Neu:** Recommender-Grundlagen (Regeln + Embedding-Kompatibilität), Cold Start, einfache Statistik.
+**Fertig, wenn:** Die App 3 Outfits vorschlägt (passend zu Saison und Farben) und eine Statistikseite hat („Getragen“-Protokoll, „was ziehe ich nie an“).
+
+## Stufe 3 – 2D-Anprobe
+
+### M9 – Anprobe auf meinem Foto (2–3 Sessions)
+**Neu:** Diffusion (Rauschen → Bild, Conditioning), Human Parsing, VRAM-Management.
+**Kandidat:** FASHN VTON 1.5 (Apache-2.0, laut Model Card ca. 8 GB VRAM, also an der Grenze). Die GPU-Warteschlange muss
+Ollama entladen, bevor sie die Anprobe startet. Für Fotos von mir ist auch eine Cloud-GPU erlaubt.
+**Fertig, wenn:** Ein in der App gewähltes Outfit ein Bild von mir in diesem Outfit ergibt.
+
+## Stufe 4 und 5 – Avatar (grob, wird nach Recherche ausgearbeitet)
+
+### M10 – 3D-Avatar im Browser
+- **Weg A:** SMPL-X (parametrisches Körpermodell: Form β, Pose θ), an meine Fotos angepasst, Viewer mit three.js.
+  Lizenz: nur nichtkommerzielle Forschung. Für das Portfolio ist das okay, gehört aber in die README.
+- **Weg B:** LHM (Einzelbild → animierbarer Gaussian-Splat-Avatar) auf einer gemieteten Cloud-GPU. VRAM-Bedarf vorher prüfen.
+- **Neu:** parametrische Körpermodelle, Gaussian Splatting, glTF/3D im Browser.
+
+### M11 – Outfit am Avatar
+Zuerst pragmatisch über die Kette 2D-Anprobe (M9) → LHM. Optional danach der Forschungsweg: Schnittmuster (ChatGarment)
+und Stoffsimulation in Blender auf einem SMPL-X-Körper.
+
+---
+
+## Ausblick (nicht eingeplant)
+Das eigene Zimmer mit Möbeln und echten Maßen in 3D digitalisieren.
