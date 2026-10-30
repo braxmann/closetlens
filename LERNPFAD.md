@@ -20,6 +20,7 @@ Vor jeder größeren Stufe recherchieren wir kurz den aktuellen Stand, den VRAM-
 - **Kein Login**, nur im Heimnetz. Fernzugriff später eventuell über Tailscale.
 - **Architektur:** siehe [README.md](README.md). Modelle stecken hinter Schnittstellen; API, Jobs, Speicher und Frontend sind getrennt.
 - **Tests** mit pytest ab M2.
+- **Sprache:** Code auf Englisch (Namen, Kommentare, Docstrings, Attributwerte), Doku und Lernpfad auf Deutsch.
 
 ---
 
@@ -27,7 +28,7 @@ Vor jeder größeren Stufe recherchieren wir kurz den aktuellen Stand, den VRAM-
 
 | Stufe | Meilenstein | Ergebnis |
 |---|---|---|
-| 1 Kleiderschrank | **M1** Freistellen + Beschreiben | `analysiere.py foto.jpg` → PNG + JSON |
+| 1 Kleiderschrank | **M1** Freistellen + Beschreiben | `analyze.py foto.jpg` → PNG + JSON |
 | | **M2** Backend + Jobs + Tests | Upload per API, Attribute landen in SQLite |
 | | **M3** Mobile Web-Frontend (Retro) | Am Handy fotografieren → Teil erscheint im Schrank |
 | 2 Training + Data Science | **M4** Testdatensatz + VLM messen | Genauigkeit pro Attribut, die Messlatte |
@@ -55,7 +56,7 @@ Die Auswertung aus M4, M6 und M7 wird der Kern des Portfolios.
 #### Schritt 0 – Einrichtung
 Venv anlegen und `requirements.txt` installieren (siehe README). Fotografier 5 Kleidungsstücke:
 eins flach auf dem Boden, eins auf dem Bügel, eins mit Muster, eins dunkel auf dunklem Grund und eins, wie du willst.
-Leg die Fotos nach `daten/fotos/`. Der Ordner ist in der `.gitignore`.
+Leg die Fotos nach `data/photos/`. Der Ordner ist in der `.gitignore`.
 
 #### Schritt 1 – Freistellen ausprobieren, noch ohne eigenen Code
 Lesen: die README von [rembg](https://github.com/danielgatis/rembg), nur die Abschnitte zu CLI, Python-Nutzung und Modellen.
@@ -66,29 +67,29 @@ Lesen: die README von [rembg](https://github.com/danielgatis/rembg), nur die Abs
   Vergleich Ergebnis und Zeit.
 - Experiment: `u2net_cloth_seg` ist auf Kleidung spezialisiert. Was macht es anders?
 
-#### Schritt 2 – Schnittstelle `Freisteller`
+#### Schritt 2 – Schnittstelle `BackgroundRemover`
 Lesen: [typing.Protocol](https://docs.python.org/3/library/typing.html#typing.Protocol), nur die Einleitung und das erste Beispiel.
 - Leitfrage: Worin unterscheidet sich ein `Protocol` von einer Basisklasse mit Vererbung? Warum ist das für Fakes in Tests praktisch?
-- Aufgabe: In `kleiderschrank/modelle/` ein Protocol `Freisteller` mit **einer** Methode (Eingabe: Bild, Ausgabe: Bild mit Alphakanal)
+- Aufgabe: In `wardrobe/models/` ein Protocol `BackgroundRemover` mit **einer** Methode (Eingabe: Bild, Ausgabe: Bild mit Alphakanal)
   und eine Implementierung mit rembg. Das Modell wird **einmal** geladen, nicht bei jedem Aufruf.
   Tipp: `new_session` in der rembg-README.
 
 #### Schritt 3 – Taxonomie und Schema
 Die wichtigste Design-Entscheidung von M1, denn auf diesem Schema bauen M4 und M6 auf.
-- Leitfrage: Warum sind feste Werte (`Literal["T-Shirt", "Hemd", ...]`) besser als freier Text, sobald du später **messen** und **trainieren** willst?
-- Aufgabe: Ein pydantic-Schema `KleidungsAttribute` mit Art, Hauptfarbe, Muster und Saison (mehrere möglich?), dazu optional
-  Material und Formalität. Leg die Werte bewusst fest. Wenige, klar trennbare Klassen sind besser als viele unscharfe.
+- Leitfrage: Warum sind feste Werte (`Literal["t-shirt", "shirt", ...]`) besser als freier Text, sobald du später **messen** und **trainieren** willst?
+- Aufgabe: Ein pydantic-Schema `GarmentAttributes` mit `category`, `main_color` und `pattern`, dazu optional
+  `material` und `formality`. Leg die Werte bewusst fest. Wenige, klar trennbare Klassen sind besser als viele unscharfe.
 - Erinnerung aus VisionLLMmini: Die Reihenfolge der Felder zählt, und Prompt und Schema müssen dieselben Namen verwenden.
 
-#### Schritt 4 – Schnittstelle `AttributErkenner` + VLM-Implementierung
+#### Schritt 4 – Schnittstelle `AttributeRecognizer` + VLM-Implementierung
 Gleiches Muster wie `frage_vlm` aus `vlm_hand.py`, aber jetzt hinter einem Protocol.
 - Vorhersage: Was passiert, wenn du ein freigestelltes PNG mit transparentem Hintergrund als **JPEG** ans VLM schickst?
 - Aufgabe: Protocol plus Ollama-Implementierung, mit dem Modellnamen als Parameter.
 - Experiment: Originalfoto vs. freigestellt auf weißem vs. freigestellt auf grauem Hintergrund. Welche Variante beschreibt das VLM am besten?
 
-#### Schritt 5 – `skripte/analysiere.py`
+#### Schritt 5 – `scripts/analyze.py`
 - Lesen: [argparse-Tutorial](https://docs.python.org/3/howto/argparse.html), nur die ersten Abschnitte.
-- Aufgabe: `analysiere.py foto.jpg [weitere.jpg ...]` stellt frei, beschreibt und schreibt `ausgabe/<name>.png` und `ausgabe/<name>.json`.
+- Aufgabe: `analyze.py foto.jpg [weitere.jpg ...]` stellt frei, beschreibt und schreibt `output/<name>.png` und `output/<name>.json`.
   Das Skript kennt nur die Schnittstellen. Welche Implementierung benutzt wird, entscheidet **eine** Stelle im Skript.
 - Fertig-Check: die 5 Fotos aus Schritt 0. Notier dir, wo das VLM danebenliegt. Das ist dein erster Eindruck für M4.
 
@@ -120,7 +121,7 @@ Macro-F1, Konfusionsmatrix.
 **Neu:** Transfer Learning, Linear Probe auf Embeddings (zuerst!), Feintuning eines kleinen Backbones, Augmentation, Overfitting.
 Lizenzen öffentlicher Mode-Datensätze vorher prüfen.
 **Fertig, wenn:** Eigenes Modell und VLM auf demselben Testset verglichen sind: Genauigkeit, Latenz, VRAM.
-Dein Modell ist eine weitere Implementierung von `AttributErkenner`.
+Dein Modell ist eine weitere Implementierung von `AttributeRecognizer`.
 
 ### M7 – Verkleinern (1–2 Sessions)
 **Neu:** Quantisierung (z. B. int8 mit ONNX Runtime), Distillation (das VLM als Lehrer).
@@ -154,3 +155,7 @@ und Stoffsimulation in Blender auf einem SMPL-X-Körper.
 
 ## Ausblick (nicht eingeplant)
 Das eigene Zimmer mit Möbeln und echten Maßen in 3D digitalisieren.
+
+Kleidungsfotos per Bildbearbeitungs-Modell glätten (keine Falten, wie perfekt ausgebreitet). Frühestens nach M9, weil es dieselben
+Diffusion-Grundlagen braucht. Nur als zusätzliche Anzeige-Version speichern; Erkennung und Messung laufen weiter auf dem echten Foto,
+weil generierte Bilder Logos und Muster verändern können.

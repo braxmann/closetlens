@@ -13,12 +13,12 @@ durchsuchen, Outfits vorschlagen – und langfristig Outfits an einem 3D-Avatar 
                         ▼
                   api/      FastAPI – nur Ein-/Ausgabe
                         │
-                  dienste/  Fachlogik
+                  services/ Fachlogik
                    │            │
-            speicher/        jobs/      eine GPU-Warteschlange
+            storage/         jobs/      eine GPU-Warteschlange
          SQLite + Dateien       │
-                          modelle/  Schnittstellen: Freisteller · AttributErkenner ·
-                                    Embedder · Anprobe · Avatar (+ Fakes für Tests)
+                          models/   Schnittstellen: BackgroundRemover · AttributeRecognizer ·
+                                    Embedder · TryOn · Avatar (+ Fakes für Tests)
 ```
 
 Jedes Modell steckt hinter einer Schnittstelle (`typing.Protocol`) und ist austauschbar,

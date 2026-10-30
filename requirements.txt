@@ -1,7 +1,7 @@
-# Wächst mit den Meilensteinen – neue Pakete kommen erst hinzu, wenn ein Meilenstein sie braucht.
+# Grows with the milestones: new packages are added only when a milestone needs them.
 
-# M1: Freistellen + Attribute per lokalem VLM
-# Mac / ohne NVIDIA:  rembg[cpu]      Windows mit NVIDIA:  rembg[gpu]  (statt der Zeile unten)
+# M1: background removal + attributes via local VLM
+# Mac / no NVIDIA:  rembg[cpu]      Windows with NVIDIA:  rembg[gpu]  (instead of the line below)
 rembg[cpu,cli]
 ollama
 pydantic
