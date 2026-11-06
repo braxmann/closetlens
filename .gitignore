@@ -4,13 +4,13 @@ __pycache__/
 .venv/
 .pytest_cache/
 
-# Eigene Fotos und alles, was daraus entsteht – bleibt lokal
-daten/
-ausgabe/
+# Own photos and everything derived from them stay local
+data/
+output/
 *.db
 *.sqlite
 
-# Modellgewichte
+# Model weights
 *.pt
 *.pth
 *.onnx
