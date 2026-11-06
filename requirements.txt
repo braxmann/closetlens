@@ -6,3 +6,11 @@ rembg[cpu,cli]
 ollama
 pydantic
 pillow
+
+# M2: API, database, tests
+fastapi
+uvicorn
+python-multipart
+sqlmodel
+pytest
+httpx
