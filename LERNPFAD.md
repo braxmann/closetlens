@@ -112,16 +112,49 @@ oder Kaufhauskatalog. Die Richtung legen wir zu Beginn von M3 fest.
 Macro-F1, Konfusionsmatrix.
 **Fertig, wenn:** Es eine Tabelle mit der VLM-Genauigkeit pro Attribut gibt. Sie ist die Messlatte für alles Weitere.
 
+**Erledigt (Nov 2026).** Ergebnisse und Methodik im [README](README.md#auswertung-m4). Was dabei aufgefallen ist:
+- T-Shirt → „shirt“ (55 %): zu gut zwei Dritteln Polos (Definitionsfrage), der Rest echte Modellfehler.
+- „multicolor“ als Ausweichantwort (Präzision 0,24), Braun mit nur 40 % Recall.
+- formality: Das VLM antwortet in 88 % der Fälle `null`.
+- Fotos mit mehreren Kleidungsstücken erklären nur wenige Fehler; häufiger sind 3/4-Shorts → „pants“,
+  Hoodies/Strickjacken zwischen jacket und sweater und zweifelhafte „Brown“-Labels.
+
+**Offen, als Experiment nach M5:**
+1. Validierungsset aus den Trainingsgruppen ziehen. Prompt-Varianten nur dort testen, nie am Testset.
+2. Prompt v2 mit festgelegten Definitionen: Polos zählen als `t-shirt`. `main_color` ist die Grundfarbe des Stoffs,
+   Drucke und Akzente gehören in `pattern`, „multicolor“ nur ohne dominierende Farbe.
+3. Prompt v2 einfrieren und auf dem Testset vergleichen: 3B gegen ein größeres lokales VLM (Qwen2.5-VL 7B / Qwen3-VL),
+   optional ein Cloud-Modell. Vorher klären, ob die Datenschutzregel öffentliche Datensätze ausnimmt.
+
 ### M5 – Embeddings: Ähnlichkeit und Textsuche (2 Sessions)
 **Neu:** Embedding-Raum, Kosinus-Ähnlichkeit, Normalisierung, Zero-Shot-Klassifikation, Vektorsuche.
-**Kandidat:** Marqo-FashionSigLIP (Apache-2.0). Vorher prüfen, ob es Nachfolger gibt.
 **Fertig, wenn:** „Ähnliche Teile“ und eine Suche wie „blaues Leinenhemd“ funktionieren und die Zero-Shot-Zahlen neben den VLM-Zahlen stehen.
+
+**Recherche (Nov 2026):** Drei Modelle, alle Apache-2.0 und unter 1 GB VRAM, werden auf dem M4-Testset verglichen:
+
+| Modell | Rolle |
+|---|---|
+| SigLIP 2 base (`google/siglip2-base-patch16-384`) | allgemeines Modell, Basislinie; dieselbe Basis wie ZooClaw |
+| Marqo-FashionSigLIP (ViT-B/16, 224 px, 768-dim) | Mode-spezifisch |
+| ZooClaw-FashionSigLIP2 (SigLIP2-base, 384 px, 768-dim) | Mode-spezifisch, Preprint Juni 2026 |
+
+Leitfrage: Wie viel bringt Mode-spezifisches Training, und wie nah kommt Zero-Shot an das VLM heran?
+
+- **Testset-Effekt:** Marqo misst auf „KAGL“, und das ist unser Datensatz (Fashion Product Images, Kaggle).
+  Die Trainingsdaten sind nicht offengelegt. Gute Marqo-Zahlen auf unserem Testset sind deshalb eher zu optimistisch.
+  ZooClaw ist auf einem nicht öffentlichen Katalog trainiert und nicht auf KAGL gemessen.
+- **Vergleichszahlen der Hersteller sind selbst gemessen.** Unabhängig (LookBench) zeigt sich nur: Mode-Feintuning schlägt allgemeine Modelle.
+- Marqo-FashionSigLIP 2 ist nicht frei verfügbar.
+- **Speicherung:** keine Vektordatenbank, ein numpy-Array reicht (30.000 × 768 ≈ 90 MB, Suche = ein Matrixprodukt).
 
 ### M6 – Eigener Attribut-Klassifikator (3 Sessions)
 **Neu:** Transfer Learning, Linear Probe auf Embeddings (zuerst!), Feintuning eines kleinen Backbones, Augmentation, Overfitting.
 Lizenzen öffentlicher Mode-Datensätze vorher prüfen.
 **Fertig, wenn:** Eigenes Modell und VLM auf demselben Testset verglichen sind: Genauigkeit, Latenz, VRAM.
 Dein Modell ist eine weitere Implementierung von `AttributeRecognizer`.
+**Reihenfolge:** Linear Probe auf dem besten M5-Modell → nur wenn nötig LoRA-Feintuning (passt auf 8 GB) → volles Feintuning eher nicht
+(kontrastives Training braucht große Batches). Trainiert wird nur auf den Trainingsgruppen aus `split.parquet`.
+Achtung: Training auf Shopfotos verbessert nicht automatisch die Erkennung auf Handyfotos.
 
 ### M7 – Verkleinern (1–2 Sessions)
 **Neu:** Quantisierung (z. B. int8 mit ONNX Runtime), Distillation (das VLM als Lehrer).

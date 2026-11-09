@@ -22,3 +22,12 @@ jinja2
 pandas
 pyarrow
 scikit-learn
+
+# M5: embeddings
+# Windows with NVIDIA: install torch first from the CUDA index (see README), otherwise pip installs the CPU build.
+torch
+torchvision
+transformers
+open_clip_torch
+sentencepiece
+protobuf
