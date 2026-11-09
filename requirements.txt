@@ -14,3 +14,11 @@ python-multipart
 sqlmodel
 pytest
 httpx
+
+# M3: HTML templates
+jinja2
+
+# M4: evaluation
+pandas
+pyarrow
+scikit-learn

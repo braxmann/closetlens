@@ -3,7 +3,7 @@
 Ein digitaler Kleiderschrank: Kleidung fotografieren, automatisch freistellen und beschreiben lassen,
 durchsuchen, Outfits vorschlagen – und langfristig Outfits an einem 3D-Avatar anprobieren.
 
-> Status: **M1 – Foto freistellen und beschreiben** (siehe [LERNPFAD.md](LERNPFAD.md))
+> Status: **M3 – Mobile Web-Frontend im Retro-Look** (siehe [LERNPFAD.md](LERNPFAD.md))
 
 ## Architektur
 
@@ -43,3 +43,15 @@ py -3.12 -m venv .venv
 ```
 
 Außerdem: [Ollama](https://ollama.com) mit einem Vision-Modell, z. B. `ollama pull qwen2.5vl:3b`.
+
+## Starten
+
+```bash
+.venv/bin/uvicorn wardrobe.api.main:app --host 0.0.0.0 --port 8001
+```
+
+- Am Rechner: <http://127.0.0.1:8001/>
+- Am Handy im selben WLAN: `http://<IP des Rechners>:8001/` (Mac: `ipconfig getifaddr en0`)
+- `--host 0.0.0.0` macht den Server im Heimnetz erreichbar. Ohne diese Option antwortet er nur dem Rechner selbst.
+- JSON-API und Testoberfläche: <http://127.0.0.1:8001/docs>
+- Tests: `.venv/bin/python -m pytest`

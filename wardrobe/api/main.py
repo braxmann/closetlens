@@ -2,18 +2,19 @@ from contextlib import asynccontextmanager
 from threading import Event, Thread
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
+from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 
+from wardrobe.api.dependencies import engine, get_session, get_storage, storage
 from wardrobe.jobs.worker import reset_stuck_garments, run_worker
 from wardrobe.models.attribute_recognizer import OllamaAttributeRecognizer
 from wardrobe.models.attributes import GarmentAttributes
 from wardrobe.models.background_remover import RembgBackgroundRemover
 from wardrobe.services.garments import correct_garment, create_garment
-from wardrobe.storage.database import Garment, create_db
+from wardrobe.storage.database import Garment
 from wardrobe.storage.files import FileStorage
-
-engine = create_db()
-storage = FileStorage()
+from wardrobe.web.pages import STATIC_DIR
+from wardrobe.web.pages import router as pages_router
 
 
 @asynccontextmanager
@@ -38,14 +39,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-def get_session():
-    with Session(engine) as session:
-        yield session
-
-
-# A dependency like get_session, so tests can swap it for a temporary folder.
-def get_storage() -> FileStorage:
-    return storage
+# Make folders reachable by URL: /static/... for CSS and JS, /cutouts/... for the cut-out photos.
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+# check_dir=False: on a fresh install the folder only appears with the first processed photo.
+app.mount("/cutouts", StaticFiles(directory=storage.base_dir / "cutouts", check_dir=False), name="cutouts")
+app.mount("/thumbnails", StaticFiles(directory=storage.base_dir / "thumbnails", check_dir=False), name="thumbnails")
+app.include_router(pages_router)
 
 
 @app.get("/garments")

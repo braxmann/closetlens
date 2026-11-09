@@ -4,6 +4,7 @@ from uuid import uuid4
 from PIL import Image
 
 BASE_DIR = Path("data")
+THUMBNAIL_SIZE = (256, 256)
 
 
 class FileStorage:
@@ -24,4 +25,11 @@ class FileStorage:
     def save_cutout(self, image: Image.Image) -> Path:
         path = self._new_path("cutouts", ".png")
         image.save(path)
+
+        # Small copy for the gallery, same file name in its own folder, so no database column is needed.
+        thumbnail = image.copy()  # copy first: thumbnail() changes the image in place and returns None
+        thumbnail.thumbnail(THUMBNAIL_SIZE)  # keeps the aspect ratio
+        thumbnail_dir = self.base_dir / "thumbnails"
+        thumbnail_dir.mkdir(parents=True, exist_ok=True)
+        thumbnail.save(thumbnail_dir / path.name)
         return path
