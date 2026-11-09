@@ -1,0 +1,22 @@
+{# One garment in the gallery. Used by the gallery, the upload response and the status polling. #}
+{% set busy = garment.status.value in ("pending", "processing") %}
+<li class="icon" id="garment-{{ garment.id }}"
+  {% if busy %}
+    {# While the worker is busy, ask the server every 2 seconds for a fresh version of this icon.
+       The answer replaces the whole <li>; once it is done, the new <li> has no hx-get, so polling stops. #}
+    hx-get="/items/{{ garment.id }}/icon" hx-trigger="every 2s" hx-swap="outerHTML"
+  {% endif %}>
+  <a href="/items/{{ garment.id }}">
+    {% if garment.cutout_path %}
+      {# The small thumbnail has the same file name as the cut-out, so the gallery loads ~50 KB instead of ~15 MB. #}
+      <img src="/thumbnails/{{ garment.cutout_path | filename }}" alt="{{ (garment.category or 'Kleidungsstück') | label }}">
+    {% elif garment.status.value == "processing" %}
+      <div class="placeholder"><div class="progress-indicator"><span class="progress-indicator-bar busy-bar"></span></div></div>
+    {% elif garment.status.value == "failed" %}
+      <div class="placeholder failed">✕</div>
+    {% else %}
+      <div class="placeholder">⧗</div>
+    {% endif %}
+  </a>
+  <span>{{ (garment.category or garment.status.value) | label }}</span>
+</li>

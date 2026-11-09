@@ -66,6 +66,7 @@ def test_process_garment_saves_attributes(session, storage):
     assert garment.status == GarmentStatus.DONE
     assert garment.category == "pants"
     assert Path(garment.cutout_path).exists()
+    assert (storage.base_dir / "thumbnails" / Path(garment.cutout_path).name).exists()
 
 
 def test_process_garment_marks_failure(session, storage):

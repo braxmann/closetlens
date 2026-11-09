@@ -14,3 +14,6 @@ python-multipart
 sqlmodel
 pytest
 httpx
+
+# M3: HTML templates
+jinja2

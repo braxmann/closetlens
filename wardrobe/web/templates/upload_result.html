@@ -1,0 +1,4 @@
+{# Answer to an upload: the new icon, plus an updated object count.
+   hx-swap-oob ("out of band") tells htmx to swap that element by its id, outside the normal target. #}
+{% include "_icon.html" %}
+<p class="status-bar-field" id="count" hx-swap-oob="true">{{ total }} Objekte</p>

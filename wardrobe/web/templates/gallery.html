@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- class="window" gets the grey 3D frame from 98.css. -->
+<div class="window">
+  <div class="title-bar">
+    <div class="title-bar-text">Kleiderschrank</div>
+  </div>
+
+  <div class="window-body">
+    <!-- Filter: on every change htmx loads the gallery with the new query and swaps in only the icon grid.
+         hx-push-url keeps the filter in the address bar, so a reload shows the same selection. -->
+    <form class="toolbar" hx-get="/" hx-trigger="change" hx-target="#icons" hx-select="#icons" hx-swap="outerHTML" hx-push-url="true">
+      <label for="filter-category">Art</label>
+      <select id="filter-category" name="category">
+        <option value="">Alle</option>
+        {% for value in options.category %}
+          <option value="{{ value }}" {% if value == category %}selected{% endif %}>{{ value | label }}</option>
+        {% endfor %}
+      </select>
+      <label for="filter-color">Farbe</label>
+      <select id="filter-color" name="main_color">
+        <option value="">Alle</option>
+        {% for value in options.main_color %}
+          <option value="{{ value }}" {% if value == main_color %}selected{% endif %}>{{ value | label }}</option>
+        {% endfor %}
+      </select>
+    </form>
+
+    <!-- The white, sunken area that holds the icons. -->
+    <ul class="icons sunken-panel" id="icons">
+      {# Jinja: repeat this block for every garment the route passed in. #}
+      {% for garment in garments %}
+        {% include "_icon.html" %}
+      {% endfor %}
+    </ul>
+    {# Hidden by CSS as soon as the grid contains an icon. #}
+    <p class="empty">Keine Teile gefunden.</p>
+
+    <!-- Upload: choosing a photo fires "change", htmx sends the form and puts the answer at the start of the grid.
+         accept="image/*" lets the phone offer the camera or the photo library. -->
+    <form class="upload" hx-post="/upload" hx-encoding="multipart/form-data" hx-trigger="change"
+          hx-target="#icons" hx-swap="afterbegin" hx-on::after-request="this.reset()">
+      <input id="photo" name="photo" type="file" accept="image/*" hidden>
+      <button type="button" onclick="document.getElementById('photo').click()">Foto hinzufügen…</button>
+      <span class="htmx-indicator">Wird hochgeladen…</span>
+    </form>
+
+    <!-- Status bar at the bottom of the window, also from 98.css. -->
+    <div class="status-bar">
+      <p class="status-bar-field" id="count">{{ garments | length }} Objekte</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
