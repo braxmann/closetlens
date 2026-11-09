@@ -134,8 +134,8 @@ Macro-F1, Konfusionsmatrix.
 
 | Modell | Rolle |
 |---|---|
-| SigLIP 2 base | allgemeines Modell, Basislinie |
-| Marqo-FashionSigLIP (ViT-B/16, 512-dim) | Mode-spezifisch |
+| SigLIP 2 base (`google/siglip2-base-patch16-384`) | allgemeines Modell, Basislinie; dieselbe Basis wie ZooClaw |
+| Marqo-FashionSigLIP (ViT-B/16, 224 px, 768-dim) | Mode-spezifisch |
 | ZooClaw-FashionSigLIP2 (SigLIP2-base, 384 px, 768-dim) | Mode-spezifisch, Preprint Juni 2026 |
 
 Leitfrage: Wie viel bringt Mode-spezifisches Training, und wie nah kommt Zero-Shot an das VLM heran?

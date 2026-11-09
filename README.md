@@ -39,6 +39,8 @@ python3.12 -m venv .venv
 
 # Windows (PowerShell) – in requirements.txt rembg[gpu] statt rembg[cpu] verwenden
 py -3.12 -m venv .venv
+# PyTorch mit CUDA zuerst, sonst installiert pip die CPU-Version
+.venv\Scripts\python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 .venv\Scripts\python -m pip install -r requirements.txt
 ```
 
