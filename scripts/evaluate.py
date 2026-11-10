@@ -33,7 +33,7 @@ def main() -> None:
     joined = join(test_set, predictions)
     tested = predictions[predictions["id"].isin(test_set["id"])]
 
-    sections = [f"# Evaluation: {args.run}\n"]
+    sections = [f"# Evaluation: {args.run} ({args.set} set)\n"]
     sections.append(block("Summary (accuracy and macro-F1 on answered cases)", summary(joined)))
     if AUDIT_RESULT_PATH.exists():
         sections.append(block("Label noise from the audit", label_noise(pd.read_csv(AUDIT_RESULT_PATH))))
