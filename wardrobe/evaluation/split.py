@@ -1,4 +1,4 @@
-"""Split the dataset into test and training groups and draw balanced test samples.
+"""Split the dataset into test, validation and training groups and draw balanced samples.
 
 Products that differ only in color (the same shirt in red and in blue) form a group. A group goes either
 into the test split or into the training split, never both, so a model trained in M6 never sees a sibling
@@ -71,13 +71,15 @@ def split_groups(
     return pd.Series(np.where(np.isin(groups, list(test_groups)), "test", "train"), index=groups)
 
 
-def sample_attribute(products: pd.DataFrame, attribute: str, n_per_class: int, seed: int) -> pd.DataFrame:
-    """Up to n_per_class test products per label of one attribute, at most one per group and label.
+def sample_attribute(
+    products: pd.DataFrame, attribute: str, n_per_class: int, seed: int, split: str = "test"
+) -> pd.DataFrame:
+    """Up to n_per_class products of one split per label of one attribute, at most one per group and label.
 
     The red and the blue variant of one shirt may both be in the color sample, but not two red ones.
     """
     rng = np.random.default_rng(seed)
-    candidates = products[(products["split"] == "test") & products[attribute].notna()]
+    candidates = products[(products["split"] == split) & products[attribute].notna()]
     one_per_group = candidates.groupby([attribute, "group"]).sample(1, random_state=rng)
     return pd.concat(
         pool.sample(min(n_per_class, len(pool)), random_state=rng) for _, pool in one_per_group.groupby(attribute)
@@ -96,9 +98,30 @@ def build_test_set(
     group_split = split_groups(products, n_per_class, max_test_fraction, seed)
     products["split"] = products["group"].map(group_split)
 
+    return products[["id", "group", "split"]], draw_samples(products, n_per_class, seed, "test")
+
+
+def draw_samples(products: pd.DataFrame, n_per_class: int, seed: int, split: str) -> pd.DataFrame:
+    """attribute, id, label: one balanced sample per attribute from one split (long format)."""
     samples = []
     for attribute in ATTRIBUTE_MAPS:
-        sample = sample_attribute(products, attribute, n_per_class, seed)
+        sample = sample_attribute(products, attribute, n_per_class, seed, split)
         samples.append(pd.DataFrame({"attribute": attribute, "id": sample["id"], "label": sample[attribute]}))
-    test_set = pd.concat(samples, ignore_index=True)
-    return products[["id", "group", "split"]], test_set
+    return pd.concat(samples, ignore_index=True)
+
+
+def build_validation_set(
+    products: pd.DataFrame, split: pd.DataFrame, n_per_class: int = 50, max_fraction: float = 0.25, seed: int = 1
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Returns (split, validation_set): moves some training groups to "validation" and samples from them.
+
+    Used to tune prompts and class texts, so the test set is looked at only once, for the final numbers.
+    Test groups stay untouched. The validation sample is drawn the same way as the test sample, but smaller
+    and with a lower fraction, so small labels keep most of their groups for training in M6.
+    """
+    products = add_labels(products).merge(split, on="id")
+    train = products[products["split"] == "train"]
+    validation_groups = split_groups(train, n_per_class, max_fraction, seed)
+    validation_groups = validation_groups[validation_groups == "test"].index
+    products.loc[products["group"].isin(validation_groups), "split"] = "validation"
+    return products[["id", "group", "split"]], draw_samples(products, n_per_class, seed, "validation")
