@@ -2,7 +2,7 @@ import logging
 
 from wardrobe.storage.database import Garment, GarmentStatus
 from PIL import Image
-
+import numpy as np
 logger = logging.getLogger(__name__)
 
 
@@ -14,7 +14,7 @@ def create_garment(session, storage, data) -> Garment:
     session.refresh(garment)
     return garment
 
-def process_garment(session, storage, garment, remover, recognizer) -> None:
+def process_garment(session, storage, garment, remover, recognizer, embedder) -> None:
     garment.status = GarmentStatus.PROCESSING
     session.add(garment)
     session.commit()
@@ -23,9 +23,12 @@ def process_garment(session, storage, garment, remover, recognizer) -> None:
         image = Image.open(garment.photo_path)
         cutout = remover.rem_background(image)
         attributes = recognizer.recognize_attributes(cutout)
+        embedding = embedder.embed_images([cutout])[0]
         path = storage.save_cutout(cutout)
         # Reload before changing anything: a correction may have arrived while the models ran.
         session.refresh(garment)
+        garment.embedding = embedding.astype(np.float32).tobytes()
+        garment.embedding_model = embedder.name
         garment.cutout_path = str(path)
         if garment.status != GarmentStatus.PROCESSING:
             # Corrected in the meantime: keep the correction, only add the cutout.

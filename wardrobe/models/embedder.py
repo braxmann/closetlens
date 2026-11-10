@@ -7,6 +7,7 @@ from PIL import Image
 
 
 class Embedder(Protocol):
+    name:str
     def embed_images(self, images: list[Image.Image]) -> np.ndarray:
         ...
 
@@ -24,6 +25,7 @@ class OpenClipEmbedder:
         self.model, _, self.preprocess_val = open_clip.create_model_and_transforms(model)
         self.model = self.model.to(self.device).eval()
         self.tokenizer = open_clip.get_tokenizer(model)
+        self.name = model
 
     def embed_images(self, images: list[Image.Image]) -> np.ndarray:
         batch = torch.stack([self.preprocess_val(image) for image in images]).to(self.device)

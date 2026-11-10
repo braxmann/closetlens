@@ -10,12 +10,13 @@ from wardrobe.jobs.worker import reset_stuck_garments, run_worker
 from wardrobe.models.attribute_recognizer import OllamaAttributeRecognizer
 from wardrobe.models.attributes import GarmentAttributes
 from wardrobe.models.background_remover import RembgBackgroundRemover
+from wardrobe.models.embedder import OpenClipEmbedder
 from wardrobe.services.garments import correct_garment, create_garment
 from wardrobe.storage.database import Garment
 from wardrobe.storage.files import FileStorage
 from wardrobe.web.pages import STATIC_DIR
 from wardrobe.web.pages import router as pages_router
-
+from wardrobe.models.embedder import OpenClipEmbedder
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,9 +27,11 @@ async def lifespan(app: FastAPI):
     # Create objects (with brackets), not just name the classes. Loaded once for the whole server.
     remover = RembgBackgroundRemover("birefnet-general")
     recognizer = OllamaAttributeRecognizer("qwen2.5vl:3b")
+    # Fashion-specific, as accurate as SigLIP2 in M5 and three times faster.
+    embedder = OpenClipEmbedder("hf-hub:Marqo/marqo-fashionSigLIP")
 
     stop = Event()
-    thread = Thread(target=run_worker, args=(engine, storage, remover, recognizer, stop), daemon=True)
+    thread = Thread(target=run_worker, args=(engine, storage, remover, recognizer, embedder, stop), daemon=True)
     thread.start()
 
     yield  # the server runs here

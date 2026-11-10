@@ -1,5 +1,6 @@
 from io import BytesIO
 
+import numpy as np
 import pytest
 from PIL import Image
 from sqlmodel import Session
@@ -24,6 +25,16 @@ class FailingBackgroundRemover:
 class FakeRecognizer:
     def recognize_attributes(self, image):
         return GarmentAttributes(category="pants", main_color="blue", pattern="solid")
+
+class FakeEmbedder:
+    name = "fake-embedder"
+
+    def embed_images(self, images):
+        return np.array([[0.6, 0.8] for _ in images])
+
+    def embed_texts(self, texts):
+        return np.array([[1.0, 0.0] for _ in texts])
+
 
 class CorrectingRecognizer:
     def __init__(self, session, garment):
@@ -62,21 +73,31 @@ def test_create_garment_is_pending(session, storage):
 
 def test_process_garment_saves_attributes(session, storage):
     garment = create_garment(session,storage,photo_bytes())
-    process_garment(session, storage, garment, FakeBackgroundRemover(), FakeRecognizer())
+    process_garment(session, storage, garment, FakeBackgroundRemover(), FakeRecognizer(), FakeEmbedder())
     assert garment.status == GarmentStatus.DONE
     assert garment.category == "pants"
     assert Path(garment.cutout_path).exists()
     assert (storage.base_dir / "thumbnails" / Path(garment.cutout_path).name).exists()
 
 
+def test_process_garment_saves_embedding(session, storage):
+    garment = create_garment(session, storage, photo_bytes())
+    process_garment(session, storage, garment, FakeBackgroundRemover(), FakeRecognizer(), FakeEmbedder())
+    session.refresh(garment)  # read back what is really in the database
+    assert garment.embedding_model == "fake-embedder"
+    assert np.frombuffer(garment.embedding, dtype=np.float32).tolist() == pytest.approx([0.6, 0.8])
+
+
 def test_process_garment_marks_failure(session, storage):
     garment = create_garment(session, storage, photo_bytes())
-    process_garment(session, storage, garment, FailingBackgroundRemover(), FakeRecognizer())
+    process_garment(session, storage, garment, FailingBackgroundRemover(), FakeRecognizer(), FakeEmbedder())
     assert garment.status == GarmentStatus.FAILED
 
 def test_process_garment_keeps_correction(session, storage):
     garment = create_garment(session, storage, photo_bytes())
     recognizer = CorrectingRecognizer(session, garment)
-    process_garment(session, storage, garment, FakeBackgroundRemover(), recognizer)
+    process_garment(session, storage, garment, FakeBackgroundRemover(), recognizer, FakeEmbedder())
     assert garment.category == "dress"
     assert Path(garment.cutout_path).exists()
+    # The correction only concerns the attributes; the image embedding is stored anyway.
+    assert garment.embedding is not None

@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 
 from wardrobe.models.attribute_recognizer import AttributeRecognizer
 from wardrobe.models.background_remover import BackgroundRemover
+from wardrobe.models.embedder import Embedder
 from wardrobe.services.garments import process_garment
 from wardrobe.storage.database import Garment, GarmentStatus
 from wardrobe.storage.files import FileStorage
@@ -29,6 +30,7 @@ def run_worker(
     storage: FileStorage,
     remover: BackgroundRemover,
     recognizer: AttributeRecognizer,
+    embedder: Embedder,
     stop: Event,
 ) -> None:
     while not stop.is_set():
@@ -36,6 +38,6 @@ def run_worker(
         with Session(engine) as session:
             garment = next_pending(session)
             if garment is not None:
-                process_garment(session, storage, garment, remover, recognizer)
+                process_garment(session, storage, garment, remover, recognizer, embedder)
                 continue  # look for the next job right away
         stop.wait(POLL_SECONDS)  # nothing to do; wakes up early when stop is set
