@@ -7,10 +7,11 @@ from wardrobe.models.attributes import Category, Color, Formality, GarmentAttrib
 from wardrobe.models.embedder import Embedder
 
 # Attribute -> (allowed values, text template). "{}" is replaced by the value.
-# Whole phrases like shop captions work better than fragments. First guesses, to be tuned on a validation set.
+# Tuned on the validation set (M5): the bare word separates t-shirt from shirt much better than
+# "a photo of a {}", and "colored" makes the model pick multicolor less often. The others are first guesses.
 TEMPLATES = {
-    "category": (get_args(Category), "a photo of a {}"),
-    "main_color": (get_args(Color), "a photo of a {} garment"),
+    "category": (get_args(Category), "{}"),
+    "main_color": (get_args(Color), "a photo of a {} colored garment"),
     "pattern": (get_args(Pattern), "a photo of a garment with a {} pattern"),
     "material": (get_args(Material), "a photo of a garment made of {}"),
     "formality": (get_args(Formality), "a photo of {} clothing"),

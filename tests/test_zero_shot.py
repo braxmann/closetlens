@@ -18,8 +18,8 @@ class FakeEmbedder:
 
 def test_picks_the_matching_value_for_every_attribute():
     embedder = FakeEmbedder({
-        "a photo of a shirt",
-        "a photo of a blue garment",
+        "shirt",
+        "a photo of a blue colored garment",
         "a photo of a garment with a checked pattern",
         "a photo of a garment made of cotton",
         "a photo of casual clothing",
@@ -38,7 +38,7 @@ def test_picks_the_matching_value_for_every_attribute():
 
 def test_never_answers_other():
     # Even if "other" were the most similar text, it is not a class the recognizer chooses from.
-    embedder = FakeEmbedder({"a photo of a other"})
+    embedder = FakeEmbedder({"other"})
     recognizer = ZeroShotAttributeRecognizer(embedder)
 
     attributes = recognizer.recognize_attributes(Image.new("RGB", (10, 10)))
