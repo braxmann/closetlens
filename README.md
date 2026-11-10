@@ -3,7 +3,7 @@
 Ein digitaler Kleiderschrank: Kleidung fotografieren, automatisch freistellen und beschreiben lassen,
 durchsuchen, Outfits vorschlagen – und langfristig Outfits an einem 3D-Avatar anprobieren.
 
-> Status: **M4 – Testdatensatz und VLM-Auswertung** abgeschlossen, als Nächstes M5 (siehe [LERNPFAD.md](LERNPFAD.md))
+> Status: **M5 – Embeddings**: Zero-Shot-Erkennung ausgewertet, App-Integration (ähnliche Teile, Textsuche) in Arbeit (siehe [LERNPFAD.md](LERNPFAD.md))
 
 ## Architektur
 
@@ -96,4 +96,37 @@ python -m scripts.prepare_dataset                        # Datensatz laden
 python -m scripts.make_test_set                          # Testset einfrieren (Seed 0)
 python -m scripts.run_recognizer --model qwen2.5vl:3b    # VLM-Lauf, fortsetzbar
 python -m scripts.evaluate --run qwen2.5vl-3b            # Bericht nach data/evaluation/
+```
+
+## Zero-Shot mit Embeddings (M5)
+
+Statt das VLM zu fragen, werden Bild und kurze Texte („shirt“, „a photo of a blue colored garment“) in denselben
+Vektorraum eingebettet. Gewählt wird der Text mit der höchsten Kosinus-Ähnlichkeit ([zero_shot.py](wardrobe/models/zero_shot.py)).
+Gleiches Testset wie in M4:
+
+| Attribut | VLM qwen2.5vl:3b | Marqo-FashionSigLIP | SigLIP2 B/16-384 |
+|---|---|---|---|
+| category | 86 % (83–88) | **93 %** (91–94) | **93 %** (91–94) |
+| main_color | 67 % (64–69) | 75 % (72–77) | 76 % (73–78) |
+| formality | 83 % bei 12 % Abdeckung | 77 % bei 100 % | 81 % bei 100 % |
+| Zeit pro Bild (RTX 2070) | 1,9 s | **0,01 s** | 0,03 s |
+
+**Methodik**
+- **Klassentexte** wurden nur auf einem eigenen Validierungsset getunt (783 Bilder aus den Trainingsgruppen,
+  [make_validation_set.py](scripts/make_validation_set.py)) und danach einmal auf dem Testset gemessen.
+- Das bloße Wort („t-shirt“) trennt T-Shirt und Hemd viel besser als „a photo of a t-shirt“:
+  T-Shirt → Hemd fiel von 36–44 auf 7–8 von 100. Bei der Farbe blieb vom Gewinn auf dem Validierungsset (+3 Punkte)
+  auf dem Testset nur etwa 1 Punkt übrig.
+- „other“ ist keine wählbare Klasse. Zero-Shot antwortet immer, deshalb ist die Abdeckung bei formality 100 %.
+  Es kann dabei „smart“ antworten, das im Testset nicht vorkommt und immer als Fehler zählt.
+
+**Einschränkungen**
+- Marqo wurde vermutlich auch auf diesem Datensatz trainiert (Marqo misst selbst auf „KAGL“), die Zahl ist eher zu optimistisch.
+- Zero-Shot erkennt keine Marke.
+
+**Reproduzieren**
+```bash
+python -m scripts.make_validation_set
+python -m scripts.run_recognizer --recognizer zero-shot --model hf-hub:Marqo/marqo-fashionSigLIP [--set validation]
+python -m scripts.evaluate --run marqo-fashionSigLIP [--set validation]
 ```

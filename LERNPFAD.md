@@ -120,7 +120,7 @@ Macro-F1, Konfusionsmatrix.
   Hoodies/Strickjacken zwischen jacket und sweater und zweifelhafte „Brown“-Labels.
 
 **Offen, als Experiment nach M5:**
-1. Validierungsset aus den Trainingsgruppen ziehen. Prompt-Varianten nur dort testen, nie am Testset.
+1. ~~Validierungsset aus den Trainingsgruppen ziehen.~~ Erledigt in M5 (`scripts/make_validation_set.py`). Prompt-Varianten nur dort testen, nie am Testset.
 2. Prompt v2 mit festgelegten Definitionen: Polos zählen als `t-shirt`. `main_color` ist die Grundfarbe des Stoffs,
    Drucke und Akzente gehören in `pattern`, „multicolor“ nur ohne dominierende Farbe.
 3. Prompt v2 einfrieren und auf dem Testset vergleichen: 3B gegen ein größeres lokales VLM (Qwen2.5-VL 7B / Qwen3-VL),
@@ -150,6 +150,17 @@ Ergebnisse knapp sind.
 - **Vergleichszahlen der Hersteller sind selbst gemessen.** Unabhängig (LookBench) zeigt sich nur: Mode-Feintuning schlägt allgemeine Modelle.
 - Marqo-FashionSigLIP 2 ist nicht frei verfügbar.
 - **Speicherung:** keine Vektordatenbank, ein numpy-Array reicht (30.000 × 768 ≈ 90 MB, Suche = ein Matrixprodukt).
+
+**Teil 1 erledigt (Nov 2026): Zero-Shot.** `OpenClipEmbedder` und `ZeroShotAttributeRecognizer` gebaut, Ergebnisse im
+[README](README.md#zero-shot-mit-embeddings-m5). Was dabei aufgefallen ist:
+- Zero-Shot schlägt das VLM bei category (93 % gegen 86 %) und main_color (75 % gegen 67 %), bei etwa 100-facher Geschwindigkeit.
+- Marqo und SigLIP2 liegen gleichauf. Marqo ist dreimal schneller und wird deshalb der Standard.
+- Die Formulierung der Klassentexte zählt: „a photo of a t-shirt“ und „a photo of a shirt“ liegen im Textraum fast
+  aufeinander, das bloße Wort trennt sie. Getunt nur auf dem Validierungsset, danach einmal auf dem Testset gemessen.
+- Gewinne auf dem Validierungsset schrumpfen auf dem Testset (Farbe: +3 → +1 Punkt). Genau dafür trennt man die Sets.
+- Größter verbleibender Kategoriefehler: Pullover → Jacke (20 %).
+
+**Teil 2 offen: App-Integration.** Embedding beim Verarbeiten speichern, „Ähnliche Teile“ in der Detailansicht, Textsuche.
 
 ### M6 – Eigener Attribut-Klassifikator (3 Sessions)
 **Neu:** Transfer Learning, Linear Probe auf Embeddings (zuerst!), Feintuning eines kleinen Backbones, Augmentation, Overfitting.
