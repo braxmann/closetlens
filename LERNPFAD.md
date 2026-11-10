@@ -140,6 +140,10 @@ Macro-F1, Konfusionsmatrix.
 
 Leitfrage: Wie viel bringt Mode-spezifisches Training, und wie nah kommt Zero-Shot an das VLM heran?
 
+**Entscheidung:** Verglichen werden SigLIP2 (`hf-hub:timm/ViT-B-16-SigLIP2-384`) und Marqo, beide über open_clip und damit über
+denselben `OpenClipEmbedder`. ZooClaw bräuchte einen eigenen Embedder für transformers und bleibt eine Option, falls die
+Ergebnisse knapp sind.
+
 - **Testset-Effekt:** Marqo misst auf „KAGL“, und das ist unser Datensatz (Fashion Product Images, Kaggle).
   Die Trainingsdaten sind nicht offengelegt. Gute Marqo-Zahlen auf unserem Testset sind deshalb eher zu optimistisch.
   ZooClaw ist auf einem nicht öffentlichen Katalog trainiert und nicht auf KAGL gemessen.
