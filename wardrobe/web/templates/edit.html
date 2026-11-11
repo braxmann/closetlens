@@ -60,6 +60,18 @@
       </div>
     </form>
 
+    {% if similar %}
+      <!-- The garments whose images are closest in the embedding space. -->
+      <fieldset class="similar">
+        <legend>Ähnliche Teile</legend>
+        <ul class="icons">
+          {% for item in similar %}
+            {% with garment = item %}{% include "_icon.html" %}{% endwith %}
+          {% endfor %}
+        </ul>
+      </fieldset>
+    {% endif %}
+
     <div class="status-bar">
       <p class="status-bar-field">Status: {{ garment.status.value | label }}</p>
       <p class="status-bar-field">Aufgenommen: {{ garment.created_at.strftime("%d.%m.%Y") }}</p>

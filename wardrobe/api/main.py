@@ -29,6 +29,8 @@ async def lifespan(app: FastAPI):
     recognizer = OllamaAttributeRecognizer("qwen2.5vl:3b")
     # Fashion-specific, as accurate as SigLIP2 in M5 and three times faster.
     embedder = OpenClipEmbedder("hf-hub:Marqo/marqo-fashionSigLIP")
+    # The same object for the worker (images) and the search (texts): the model is loaded only once.
+    app.state.embedder = embedder
 
     stop = Event()
     thread = Thread(target=run_worker, args=(engine, storage, remover, recognizer, embedder, stop), daemon=True)

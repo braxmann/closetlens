@@ -1,12 +1,14 @@
 from io import BytesIO
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 from sqlmodel import Session
 
+from wardrobe.api.dependencies import get_embedder
 from wardrobe.api.main import app, get_session, get_storage
-from wardrobe.storage.database import create_db
+from wardrobe.storage.database import Garment, create_db
 from wardrobe.storage.files import FileStorage
 
 
@@ -14,6 +16,23 @@ def photo_bytes() -> bytes:
     buffer = BytesIO()
     Image.new("RGB", (4, 4)).save(buffer, format="JPEG")
     return buffer.getvalue()
+
+
+class FakeEmbedder:
+    name = "fake-embedder"
+
+    def embed_texts(self, texts):
+        return np.array([[1.0, 0.0] for _ in texts])
+
+
+def set_embedding(client, garment_id: int, vector: list[float]) -> None:
+    """Stores an embedding directly, as the worker would."""
+    with Session(client.engine) as session:
+        garment = session.get(Garment, garment_id)
+        garment.embedding = np.array(vector, dtype=np.float32).tobytes()
+        garment.embedding_model = "fake-embedder"
+        session.add(garment)
+        session.commit()
 
 
 @pytest.fixture
@@ -26,8 +45,11 @@ def client(tmp_path):
 
     app.dependency_overrides[get_session] = test_session
     app.dependency_overrides[get_storage] = lambda: FileStorage(tmp_path)
+    app.dependency_overrides[get_embedder] = lambda: FakeEmbedder()
     # Without "with TestClient(...)" the lifespan does not run, so no worker and no real models.
-    yield TestClient(app)
+    client = TestClient(app)
+    client.engine = engine
+    yield client
     app.dependency_overrides.clear()
 
 
@@ -78,3 +100,24 @@ def test_filter_by_category(client):
 
 def test_unknown_item_is_404(client):
     assert client.get("/items/999").status_code == 404
+
+
+def test_search_ranks_best_match_first(client):
+    for _ in range(3):
+        upload(client)
+    set_embedding(client, 1, [0.0, 1.0])
+    set_embedding(client, 2, [1.0, 0.0])  # FakeEmbedder embeds every text as [1, 0]
+    # garment 3 has no embedding yet and cannot be found
+    html = client.get("/", params={"q": "red shirt"}).text
+    assert html.index('id="garment-2"') < html.index('id="garment-1"')
+    assert 'id="garment-3"' not in html
+
+
+def test_detail_shows_similar_garments(client):
+    upload(client)
+    upload(client)
+    set_embedding(client, 1, [1.0, 0.0])
+    set_embedding(client, 2, [0.8, 0.6])
+    html = client.get("/items/1").text
+    assert "Ähnliche Teile" in html
+    assert 'id="garment-2"' in html

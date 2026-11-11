@@ -10,7 +10,12 @@
   <div class="window-body">
     <!-- Filter: on every change htmx loads the gallery with the new query and swaps in only the icon grid.
          hx-push-url keeps the filter in the address bar, so a reload shows the same selection. -->
-    <form class="toolbar" hx-get="/" hx-trigger="change" hx-target="#icons" hx-select="#icons" hx-swap="outerHTML" hx-push-url="true">
+    <form class="toolbar" hx-get="/" hx-trigger="change, search, keyup changed delay:500ms from:#search"
+          hx-target="#icons" hx-select="#icons" hx-swap="outerHTML" hx-push-url="true">
+      <!-- Text search over the image embeddings; asks the server half a second after the last key press.
+           German works too: in a test, "rotes kariertes Hemd" found the same garments as "red checked shirt". -->
+      <input id="search" class="search" name="q" type="search" value="{{ q or '' }}"
+             placeholder="Suchen, z. B. rotes Karohemd" aria-label="Suchen">
       <label for="filter-category">Art</label>
       <select id="filter-category" name="category">
         <option value="">Alle</option>

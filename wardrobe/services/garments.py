@@ -80,7 +80,7 @@ def load_embeddings(session, model: str) -> tuple[list[Garment], np.ndarray]:
     return garments, vectors
 
 
-def best_matches(garments: list[Garment], vectors: np.ndarray, query: np.ndarray, k: int) -> list[Garment]:
+def best_matches(garments: list[Garment], vectors: np.ndarray, query: np.ndarray, k: int | None) -> list[Garment]:
     """The k garments whose vectors have the highest cosine similarity to query, most similar first.
 
     All vectors are normalized, so the dot product is the cosine similarity.
@@ -103,8 +103,8 @@ def similar_garments(session, garment: Garment, k: int = 6) -> list[Garment]:
     return [match for match in matches if match.id != garment.id][:k]
 
 
-def search_garments(session, embedder, text: str, k: int = 6) -> list[Garment]:
-    """The k garments whose image fits a text like "blue linen shirt" best, most similar first."""
+def search_garments(session, embedder, text: str, k: int | None = 6) -> list[Garment]:
+    """The k garments whose image fits a text like "blue linen shirt" best, most similar first; k=None: all."""
     garments, vectors = load_embeddings(session, embedder.name)
     query = embedder.embed_texts([text])[0]
     return best_matches(garments, vectors, query, k)

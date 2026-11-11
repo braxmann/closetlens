@@ -98,6 +98,12 @@ body {
   display: none;
 }
 
+/* The search field takes its own full line above the filters. */
+.toolbar .search {
+  flex: 1 1 100%;
+  box-sizing: border-box;
+}
+
 .upload {
   display: flex;
   align-items: center;
@@ -140,4 +146,14 @@ body {
 /* The close button in the title bar is wrapped in a link; keep the link from adding spacing. */
 .close-link {
   display: flex;
+}
+
+/* Similar garments in the detail window: a small grid without the gallery's minimum height. */
+.similar {
+  margin-bottom: 8px;
+}
+
+.similar .icons {
+  min-height: 0;
+  margin: 0;
 }
