@@ -7,8 +7,10 @@ from sqlmodel import Session
 from pathlib import Path
 
 from wardrobe.models.attributes import GarmentAttributes
-from wardrobe.services.garments import create_garment, process_garment, correct_garment
-from wardrobe.storage.database import GarmentStatus, create_db
+from wardrobe.services.garments import (
+    correct_garment, create_garment, process_garment, search_garments, similar_garments,
+)
+from wardrobe.storage.database import Garment, GarmentStatus, create_db
 from wardrobe.storage.files import FileStorage
 
 
@@ -101,3 +103,38 @@ def test_process_garment_keeps_correction(session, storage):
     assert Path(garment.cutout_path).exists()
     # The correction only concerns the attributes; the image embedding is stored anyway.
     assert garment.embedding is not None
+
+
+def add_embedded(session, vector, model="fake-embedder") -> Garment:
+    garment = Garment(
+        photo_path="x.jpeg", status=GarmentStatus.DONE, embedding_model=model,
+        embedding=np.array(vector, dtype=np.float32).tobytes(),
+    )
+    session.add(garment)
+    session.commit()
+    session.refresh(garment)
+    return garment
+
+
+def test_similar_garments_most_similar_first_without_itself(session):
+    shirt = add_embedded(session, [1.0, 0.0])
+    close = add_embedded(session, [0.8, 0.6])
+    far = add_embedded(session, [0.0, 1.0])
+    add_embedded(session, [1.0, 0.0], model="other-model")  # other vector space, never compared
+    assert [g.id for g in similar_garments(session, shirt, k=5)] == [close.id, far.id]
+
+
+def test_similar_garments_without_embedding_is_empty(session, storage):
+    garment = create_garment(session, storage, photo_bytes())
+    assert similar_garments(session, garment) == []
+
+
+def test_search_garments_finds_the_matching_image(session):
+    # FakeEmbedder embeds every text as [1, 0].
+    match = add_embedded(session, [1.0, 0.0])
+    add_embedded(session, [0.0, 1.0])
+    assert search_garments(session, FakeEmbedder(), "blue linen shirt", k=1) == [match]
+
+
+def test_search_without_any_embeddings_is_empty(session):
+    assert search_garments(session, FakeEmbedder(), "anything") == []
