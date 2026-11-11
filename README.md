@@ -3,7 +3,7 @@
 Ein digitaler Kleiderschrank: Kleidung fotografieren, automatisch freistellen und beschreiben lassen,
 durchsuchen, Outfits vorschlagen – und langfristig Outfits an einem 3D-Avatar anprobieren.
 
-> Status: **M5 – Embeddings**: Zero-Shot-Erkennung ausgewertet, App-Integration (ähnliche Teile, Textsuche) in Arbeit (siehe [LERNPFAD.md](LERNPFAD.md))
+> Status: **M5 – Embeddings** abgeschlossen (Zero-Shot, ähnliche Teile, Textsuche), als Nächstes M6 (siehe [LERNPFAD.md](LERNPFAD.md))
 
 ## Architektur
 

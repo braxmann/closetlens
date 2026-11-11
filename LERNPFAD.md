@@ -160,7 +160,13 @@ Ergebnisse knapp sind.
 - Gewinne auf dem Validierungsset schrumpfen auf dem Testset (Farbe: +3 → +1 Punkt). Genau dafür trennt man die Sets.
 - Größter verbleibender Kategoriefehler: Pullover → Jacke (20 %).
 
-**Teil 2 offen: App-Integration.** Embedding beim Verarbeiten speichern, „Ähnliche Teile“ in der Detailansicht, Textsuche.
+**Teil 2 erledigt: App-Integration.** Der Worker speichert das Marqo-Embedding des freigestellten Bildes in SQLite
+(`embedding` als float32-Bytes, dazu `embedding_model`, weil Vektoren verschiedener Modelle nicht vergleichbar sind).
+Die Detailansicht zeigt „Ähnliche Teile“, die Galerie hat eine Textsuche. Brute Force (ein Matrixprodukt) reicht bei
+ein paar hundert Teilen; bei Millionen bräuchte man einen Vektorindex wie pgvector/HNSW.
+- Deutsche Suchtexte funktionieren: „rotes kariertes Hemd“ findet dasselbe wie „red checked shirt“.
+- Die Suche findet nie „nichts“, nur weniger Ähnliches. Deshalb höchstens 12 Treffer.
+- Noch offen: Erkenner in der App von VLM auf Zero-Shot umstellen? Zero-Shot ist genauer und schneller, erkennt aber keine Marke.
 
 ### M6 – Eigener Attribut-Klassifikator (3 Sessions)
 **Neu:** Transfer Learning, Linear Probe auf Embeddings (zuerst!), Feintuning eines kleinen Backbones, Augmentation, Overfitting.
