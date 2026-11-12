@@ -4,7 +4,9 @@ The embedder stays unchanged; only one weight per class and embedding dimension 
 training products.
 """
 import numpy as np
+import pandas as pd
 from sklearn.linear_model import LogisticRegression
+
 
 
 def rows_for(ids: np.ndarray, vectors: np.ndarray, wanted: np.ndarray) -> np.ndarray:
@@ -21,3 +23,12 @@ def accuracy(model: LogisticRegression, X: np.ndarray, y: np.ndarray) -> float:
     predictions = model.predict(X)
     return (predictions == y).mean()
 
+
+
+def sample_per_class(labeled: pd.DataFrame, attribute: str, n: int, seed: int) -> pd.DataFrame:
+    """Up to n random rows per label of attribute. Labels with fewer rows keep all of them.
+
+    Used for the learning curve: how good is the probe with only n training examples per class?
+    """
+    shuffled = labeled.sample(frac=1, random_state=seed)  # sample returns a new table, labeled stays unchanged
+    return shuffled.groupby(attribute).head(n)

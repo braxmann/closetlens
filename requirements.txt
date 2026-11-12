@@ -31,3 +31,6 @@ transformers
 open_clip_torch
 sentencepiece
 protobuf
+
+# M6: training
+matplotlib
