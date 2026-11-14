@@ -1,159 +1,491 @@
-/* Our own layout on top of 98.css. 98.css styles the controls; this file arranges them. */
+/* The whole look of the app ("Atelier"): light, quiet, like a lookbook.
+   No cards, frames or shadows: the garments stand directly on the background and are the only colour. */
 
-/* The teal Windows desktop behind the window. */
-body {
-  background: #008080;
-  margin: 0;
-  padding: 12px;
-  min-height: 100vh;
+/* Variables: every colour and font is defined once here and reused below with var(--name). */
+:root {
+  --bg: #f6f4ef;      /* warm off-white */
+  --text: #1a1917;    /* almost black */
+  --muted: #8a867d;   /* labels, counters, hints */
+  --line: #dedad1;    /* hairlines */
+  --error: #a3352b;
+  /* System fonts only, so nothing has to be downloaded. */
+  --serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-/* On the phone the window fills the width; on a big screen it stays a sensible size. */
-.window {
-  max-width: 720px;
-  margin: 0 auto;
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Filter row above the icons; wraps onto two lines on narrow phones. */
-.toolbar {
+a {
+  color: inherit;
+}
+
+/* The page: centred, with a little more air on big screens. */
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  /* The bottom padding leaves room for the floating "+" button. */
+  padding: 20px 20px 110px;
+}
+
+@media (min-width: 700px) {
+  .page {
+    padding: 44px 36px 120px;
+  }
+}
+
+/* Header: title on the left, counter on the right, one hairline below. */
+.masthead {
   display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.masthead h1 {
+  margin: 0;
+  font: 400 30px/1.1 var(--serif);
+  letter-spacing: -0.01em;
+}
+
+@media (min-width: 700px) {
+  .masthead h1 {
+    font-size: 42px;
+  }
+}
+
+/* Small, spaced-out capitals: used for the counter, field labels and section titles. */
+.meta,
+.field label,
+.section-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.meta {
+  white-space: nowrap;
+}
+
+/* Search and filters */
+.filters {
+  display: grid;
+  gap: 16px;
+  margin: 6px 0 30px;
+}
+
+/* The search field has no box, only a line below it. */
+.search {
+  width: 100%;
+  padding: 14px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  /* 16px stops iPhones from zooming in when the field gets the focus. */
+  font: 16px var(--sans);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search::placeholder {
+  color: var(--muted);
+}
+
+.search:focus {
+  border-bottom-color: var(--text);
+}
+
+/* A filter row is a group of radio buttons. fieldset is the HTML element for such a group. */
+.chips,
+.swatches {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+}
+
+/* Categories: one line that can be swiped sideways on the phone, without a visible scrollbar. */
+.chips {
+  gap: 22px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chips label {
+  flex: none;
+  padding: 4px 0;
+  color: var(--muted);
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chips label:hover {
+  color: var(--text);
+}
+
+/* :has(:checked) = "the label whose radio button is selected": dark text and a line below. */
+.chips label:has(:checked) {
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+
+/* position: relative keeps the hidden radio button inside its label.
+   Without it the button would stick out of the swipeable row and make the whole page scroll sideways. */
+.chips label,
+.swatches label {
+  position: relative;
+}
+
+/* The real radio buttons are invisible but still there, so the keyboard and screen readers can use them. */
+.chips input,
+.swatches input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Colours: a row of small dots. */
+.swatches {
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  margin-bottom: 8px;
+  gap: 12px;
 }
 
-/* Icon grid: as many 96px columns as fit, so it works on phone and desktop. */
+.swatches label {
+  cursor: pointer;
+}
+
+.swatches .all {
+  margin-right: 4px;
+  color: var(--muted);
+}
+
+.swatches .all:has(:checked) {
+  color: var(--text);
+}
+
+.dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  /* A faint edge, so white and beige stay visible on the light background. */
+  border: 1px solid rgb(0 0 0 / 0.14);
+}
+
+/* The selected dot gets a ring with a small gap around it. */
+.swatches label:has(:checked) .dot {
+  outline: 1px solid var(--text);
+  outline-offset: 3px;
+}
+
+/* A visible focus mark for keyboard users, because the real radio buttons are hidden. */
+.chips label:has(:focus-visible),
+.swatches label:has(:focus-visible) {
+  outline: 2px solid var(--text);
+  outline-offset: 4px;
+}
+
+/* One colour per value of the Color type in the schema. */
+[data-color="black"] { background: #1a1917; }
+[data-color="white"] { background: #ffffff; }
+[data-color="gray"] { background: #9a9a98; }
+[data-color="beige"] { background: #d9c7a5; }
+[data-color="brown"] { background: #6f4a2f; }
+[data-color="blue"] { background: #2f4f8f; }
+[data-color="green"] { background: #4d7049; }
+[data-color="red"] { background: #b3312b; }
+[data-color="yellow"] { background: #e3c13a; }
+[data-color="pink"] { background: #e7a6b8; }
+[data-color="purple"] { background: #73508f; }
+[data-color="multicolor"] { background: conic-gradient(#b3312b, #e3c13a, #4d7049, #2f4f8f, #73508f, #b3312b); }
+/* "other" has no colour of its own: an empty dot with a diagonal stroke. */
+[data-color="other"] { background: linear-gradient(135deg, transparent 45%, var(--muted) 45% 55%, transparent 55%); }
+
+/* Garment grid: two columns on the phone, more as soon as there is room. */
 .icons {
   list-style: none;
-  margin: 0 0 6px;
-  padding: 12px 8px;
-  background: #fff;
+  margin: 0;
+  padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 14px 6px;
-  min-height: 240px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 30px 18px;
+}
+
+@media (min-width: 560px) {
+  .icons {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 44px 28px;
+  }
 }
 
 .icon {
   display: grid;
+  gap: 10px;
   justify-items: center;
-  gap: 4px;
   text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
 }
 
 .icon a {
-  color: inherit;
+  display: block;
+  width: 100%;
   text-decoration: none;
 }
 
-/* object-fit: contain keeps the whole garment visible instead of cropping it. */
+/* A square area; object-fit: contain keeps the whole garment visible instead of cropping it. */
 .icon img,
 .icon .placeholder {
-  width: 72px;
-  height: 72px;
+  display: block;
+  width: 100%;
+  max-width: 200px;
+  margin: 0 auto;
+  aspect-ratio: 1;
   object-fit: contain;
 }
 
 .icon .placeholder {
   display: grid;
   place-items: center;
-  border: 1px dotted #808080;
-  color: #808080;
-  font-size: 22px;
+  align-content: center;
+  gap: 10px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .icon .placeholder.failed {
-  color: #a00000;
+  color: var(--error);
 }
 
-/* Progress bar while the worker is busy: we do not know the real progress, so the bar just moves. */
-.icon .progress-indicator {
-  width: 60px;
-}
-
-.busy-bar {
-  width: 40%;
+/* A thin line that pulses while the worker is busy: we do not know the real progress. */
+.busy-line {
+  width: 44px;
+  height: 1px;
+  background: var(--text);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .busy-bar {
-    animation: busy 1.2s steps(6) infinite alternate;
+  .busy-line {
+    animation: pulse 1.2s ease-in-out infinite alternate;
+  }
+
+  /* A freshly uploaded garment fades in softly: htmx gives new elements the class htmx-added
+     for a moment and then removes it, and the transition animates the change. */
+  .icon {
+    transition: opacity 0.35s ease-out;
+  }
+
+  .icon.htmx-added {
+    opacity: 0;
+  }
+
+  /* On hover the garment lifts a little. */
+  .icon img {
+    transition: transform 0.25s ease;
+  }
+
+  .icon a:hover img {
+    transform: translateY(-4px);
   }
 }
 
-@keyframes busy {
-  from { width: 10%; }
-  to { width: 100%; }
+@keyframes pulse {
+  from { transform: scaleX(0.25); opacity: 0.35; }
+  to { transform: scaleX(1); opacity: 1; }
 }
 
 /* "No garments" shows only while the grid has no icon (:has checks the grid's children). */
 .empty {
-  color: #fff;
-  margin: 0 0 6px;
+  margin: 70px 0;
+  text-align: center;
+  color: var(--muted);
 }
 
-.window-body:has(.icons .icon) .empty {
+.page:has(#icons .icon) .empty {
   display: none;
 }
 
-/* The search field takes its own full line above the filters. */
-.toolbar .search {
-  flex: 1 1 100%;
-  box-sizing: border-box;
-}
-
+/* Upload: a round "+" button that stays in the bottom right corner while the page scrolls. */
 .upload {
+  position: fixed;
+  right: 20px;
+  /* env(safe-area-inset-bottom) keeps the button above the home bar of an iPhone. */
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   display: flex;
+  flex-direction: row-reverse;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: 12px;
 }
 
-/* Detail window */
+.upload button {
+  width: 56px;
+  height: 56px;
+  padding: 0 0 3px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--bg);
+  font: 300 30px/1 var(--sans);
+  cursor: pointer;
+}
+
+.upload button:focus-visible,
+.button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
+}
+
+/* htmx adds the class htmx-request to the form while the upload runs; only then the hint is visible. */
+.upload .htmx-indicator {
+  display: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.upload.htmx-request .htmx-indicator {
+  display: block;
+}
+
+/* Detail page */
+.back {
+  display: inline-block;
+  margin-bottom: 18px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--text);
+}
+
+/* Phone: picture on top, form below. Wide screen: picture left, form right. */
+.detail {
+  display: grid;
+  gap: 28px;
+  margin-top: 28px;
+}
+
+@media (min-width: 800px) {
+  .detail {
+    grid-template-columns: 1.2fr 1fr;
+    gap: 64px;
+    align-items: start;
+  }
+}
+
 .preview {
-  background: #fff;
   display: grid;
   place-items: center;
-  padding: 8px;
-  margin-bottom: 10px;
+  min-height: 200px;
+  color: var(--muted);
 }
 
 .preview img {
-  max-height: 50vh;
+  max-width: 100%;
+  max-height: 60vh;
   object-fit: contain;
 }
 
 .properties {
   display: grid;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 20px;
 }
 
-.properties select,
-.properties input {
+.field {
+  display: grid;
+  gap: 2px;
+}
+
+/* Like the search field: no box, only a line below. */
+.field select,
+.field input {
   width: 100%;
-  box-sizing: border-box;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: 16px var(--sans);
+  outline: none;
+}
+
+.field select:focus,
+.field input:focus {
+  border-bottom-color: var(--text);
+}
+
+.field input::placeholder {
+  color: var(--muted);
 }
 
 .buttons {
   display: flex;
-  justify-content: flex-end;
-  gap: 6px;
+  align-items: center;
+  gap: 22px;
+  margin-top: 8px;
 }
 
-/* The close button in the title bar is wrapped in a link; keep the link from adding spacing. */
-.close-link {
-  display: flex;
+.button {
+  padding: 12px 30px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font: 14px var(--sans);
+  cursor: pointer;
 }
 
-/* Similar garments in the detail window: a small grid without the gallery's minimum height. */
+.cancel {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.cancel:hover {
+  color: var(--text);
+}
+
+.properties .meta {
+  margin-top: 6px;
+}
+
+/* Similar garments below the form, in the same grid as the gallery. */
 .similar {
-  margin-bottom: 8px;
+  margin-top: 60px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
 }
 
-.similar .icons {
-  min-height: 0;
-  margin: 0;
+.section-title {
+  margin-bottom: 26px;
 }

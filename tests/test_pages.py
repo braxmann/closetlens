@@ -62,14 +62,14 @@ def upload(client) -> str:
 def test_empty_gallery(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert "0 Objekte" in response.text
+    assert "0 Teile" in response.text
 
 
 def test_upload_returns_polling_icon_and_count(client):
     html = upload(client)
     assert 'id="garment-1"' in html
     assert 'hx-trigger="every 2s"' in html  # still pending, so it keeps asking
-    assert "1 Objekte" in html
+    assert "1 Teil<" in html
 
 
 def test_edit_saves_correction_and_stops_polling(client):

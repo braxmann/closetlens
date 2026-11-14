@@ -102,6 +102,8 @@ Gleiches Muster wie `frage_vlm` aus `vlm_hand.py`, aber jetzt hinter einem Proto
 **Neu:** mobile-first CSS, Kamera-Upload im Browser (`<input type="file" accept="image/*" capture>`), Status-Polling, Zugriff im Heimnetz.
 **Design:** schlicht gebaut (FastAPI-Templates + htmx oder Vanilla JS), aber mit eigenem Charakter, z. B. Retro-OS, Pixel-Schrift
 oder Kaufhauskatalog. Die Richtung legen wir zu Beginn von M3 fest.
+**Nachtrag (14.11.2026):** Der Retro-OS-Look (98.css) wurde durch einen hellen, minimalistischen Lookbook-Stil ("Atelier") ersetzt.
+Nur `app.css` und die Templates haben sich geändert; Routen und htmx-Logik sind gleich geblieben.
 **Du baust:** Galerie, Filter, Detailansicht mit **Korrigieren der Attribute**. Die Korrekturen sind später dein Ground Truth.
 **Fertig, wenn:** Du am Handy ein Teil fotografierst und es freigestellt und beschrieben im Schrank erscheint.
 

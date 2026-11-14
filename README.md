@@ -8,7 +8,7 @@ durchsuchen, Outfits vorschlagen – und langfristig Outfits an einem 3D-Avatar 
 ## Architektur
 
 ```
- Handy/Browser ──► Frontend (mobile-first, Retro-Look)
+ Handy/Browser ──► Frontend (mobile-first, heller Lookbook-Stil)
                         │ HTTP
                         ▼
                   api/      FastAPI – nur Ein-/Ausgabe

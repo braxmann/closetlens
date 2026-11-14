@@ -1,60 +1,57 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!-- class="window" gets the grey 3D frame from 98.css. -->
-<div class="window">
-  <div class="title-bar">
-    <div class="title-bar-text">Kleiderschrank</div>
-  </div>
+<header class="masthead">
+  <h1>Kleiderschrank</h1>
+  <p class="meta" id="count">{{ garments | length }} {{ "Teil" if garments | length == 1 else "Teile" }}</p>
+</header>
 
-  <div class="window-body">
-    <!-- Filter: on every change htmx loads the gallery with the new query and swaps in only the icon grid.
-         hx-push-url keeps the filter in the address bar, so a reload shows the same selection. -->
-    <form class="toolbar" hx-get="/" hx-trigger="change, search, keyup changed delay:500ms from:#search"
-          hx-target="#icons" hx-select="#icons" hx-swap="outerHTML" hx-push-url="true">
-      <!-- Text search over the image embeddings; asks the server half a second after the last key press.
-           German works too: in a test, "rotes kariertes Hemd" found the same garments as "red checked shirt". -->
-      <input id="search" class="search" name="q" type="search" value="{{ q or '' }}"
-             placeholder="Suchen, z. B. rotes Karohemd" aria-label="Suchen">
-      <label for="filter-category">Art</label>
-      <select id="filter-category" name="category">
-        <option value="">Alle</option>
-        {% for value in options.category %}
-          <option value="{{ value }}" {% if value == category %}selected{% endif %}>{{ value | label }}</option>
-        {% endfor %}
-      </select>
-      <label for="filter-color">Farbe</label>
-      <select id="filter-color" name="main_color">
-        <option value="">Alle</option>
-        {% for value in options.main_color %}
-          <option value="{{ value }}" {% if value == main_color %}selected{% endif %}>{{ value | label }}</option>
-        {% endfor %}
-      </select>
-    </form>
+<!-- Filter: on every change htmx loads the gallery with the new query and swaps in only the garment grid.
+     hx-push-url keeps the filter in the address bar, so a reload shows the same selection. -->
+<form class="filters" hx-get="/" hx-trigger="change, search, keyup changed delay:500ms from:#search"
+      hx-target="#icons" hx-select="#icons" hx-swap="outerHTML" hx-push-url="true">
+  <!-- Text search over the image embeddings; asks the server half a second after the last key press.
+       German works too: in a test, "rotes kariertes Hemd" found the same garments as "red checked shirt". -->
+  <input id="search" class="search" name="q" type="search" value="{{ q or '' }}"
+         placeholder="Suchen, z. B. rotes Karohemd" aria-label="Suchen">
 
-    <!-- The white, sunken area that holds the icons. -->
-    <ul class="icons sunken-panel" id="icons">
-      {# Jinja: repeat this block for every garment the route passed in. #}
-      {% for garment in garments %}
-        {% include "_icon.html" %}
-      {% endfor %}
-    </ul>
-    {# Hidden by CSS as soon as the grid contains an icon. #}
-    <p class="empty">Keine Teile gefunden.</p>
+  <!-- Radio buttons instead of a dropdown: all choices are visible and one tap is enough.
+       Only one radio button with the same name can be selected, and the form sends its value. -->
+  <fieldset class="chips" aria-label="Art">
+    <label><input type="radio" name="category" value="" {% if not category %}checked{% endif %}>Alle</label>
+    {% for value in options.category %}
+      <label><input type="radio" name="category" value="{{ value }}" {% if value == category %}checked{% endif %}>{{ value | label }}</label>
+    {% endfor %}
+  </fieldset>
 
-    <!-- Upload: choosing a photo fires "change", htmx sends the form and puts the answer at the start of the grid.
-         accept="image/*" lets the phone offer the camera or the photo library. -->
-    <form class="upload" hx-post="/upload" hx-encoding="multipart/form-data" hx-trigger="change"
-          hx-target="#icons" hx-swap="afterbegin" hx-on::after-request="this.reset()">
-      <input id="photo" name="photo" type="file" accept="image/*" hidden>
-      <button type="button" onclick="document.getElementById('photo').click()">Foto hinzufügen…</button>
-      <span class="htmx-indicator">Wird hochgeladen…</span>
-    </form>
+  <!-- The colour filter works the same way; the dot gets its colour from data-color in app.css. -->
+  <fieldset class="swatches" aria-label="Farbe">
+    <label class="all"><input type="radio" name="main_color" value="" {% if not main_color %}checked{% endif %}>Alle Farben</label>
+    {% for value in options.main_color %}
+      <label title="{{ value | label }}">
+        <input type="radio" name="main_color" value="{{ value }}" aria-label="{{ value | label }}" {% if value == main_color %}checked{% endif %}>
+        <span class="dot" data-color="{{ value }}"></span>
+      </label>
+    {% endfor %}
+  </fieldset>
+</form>
 
-    <!-- Status bar at the bottom of the window, also from 98.css. -->
-    <div class="status-bar">
-      <p class="status-bar-field" id="count">{{ garments | length }} Objekte</p>
-    </div>
-  </div>
-</div>
+<ul class="icons" id="icons">
+  {# Jinja: repeat this block for every garment the route passed in. #}
+  {% for garment in garments %}
+    {% include "_icon.html" %}
+  {% endfor %}
+</ul>
+{# Hidden by CSS as soon as the grid contains a garment. #}
+<p class="empty">Keine Teile gefunden.</p>
+
+<!-- Upload: choosing a photo fires "change", htmx sends the form and puts the answer at the start of the grid.
+     accept="image/*" lets the phone offer the camera or the photo library. -->
+<form class="upload" hx-post="/upload" hx-encoding="multipart/form-data" hx-trigger="change"
+      hx-target="#icons" hx-swap="afterbegin" hx-on::after-request="this.reset()">
+  <input id="photo" name="photo" type="file" accept="image/*" hidden>
+  <button type="button" aria-label="Foto hinzufügen" title="Foto hinzufügen"
+          onclick="document.getElementById('photo').click()">+</button>
+  <span class="htmx-indicator">Wird hochgeladen…</span>
+</form>
 {% endblock %}
