@@ -1,4 +1,4 @@
-# Lernpfad: Digitaler Kleiderschrank
+# Lernpfad: ClosetLens
 
 Vom Kleidungsfoto bis zum Outfit am eigenen 3D-Avatar, in Stufen, die jede für sich vorzeigbar sind.
 Vorgänger und Lernarchiv: `VisionLLMmini` (YOLO-Kaskade, Pose, MediaPipe-Hände, VLM per Ollama, Threads).

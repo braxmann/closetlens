@@ -1,4 +1,4 @@
-# Kleiderschrank
+# ClosetLens
 
 Ein digitaler Kleiderschrank: Kleidung fotografieren, automatisch freistellen und beschreiben lassen,
 durchsuchen, Outfits vorschlagen – und langfristig Outfits an einem 3D-Avatar anprobieren.
