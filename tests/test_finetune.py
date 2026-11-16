@@ -79,3 +79,18 @@ def test_lora_can_change_the_output_after_a_training_step():
     optimizer.step()
 
     assert not torch.allclose(lora(x), before)
+
+
+def test_transparent_cutouts_get_a_white_background():
+    from PIL import Image
+
+    from wardrobe.models.finetuned import flatten_on_white
+
+    cutout = Image.new("RGBA", (2, 1), (0, 0, 0, 0))  # fully transparent ...
+    cutout.putpixel((1, 0), (255, 0, 0, 255))  # ... except one red pixel
+
+    flat = flatten_on_white(cutout)
+
+    assert flat.mode == "RGB"
+    assert flat.getpixel((0, 0)) == (255, 255, 255)  # transparent became white, not black
+    assert flat.getpixel((1, 0)) == (255, 0, 0)

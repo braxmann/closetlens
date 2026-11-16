@@ -8,6 +8,8 @@ Run from the project root:
     .venv/bin/python -m scripts.run_recognizer --recognizer zero-shot --model hf-hub:Marqo/marqo-fashionSigLIP
     .venv/bin/python -m scripts.run_recognizer --recognizer probe --model hf-hub:Marqo/marqo-fashionSigLIP --run probe
         (needs the probes from: python -m scripts.train_probe --save)
+    .venv/bin/python -m scripts.run_recognizer --recognizer finetuned:marqo-last2-ls --model hf-hub:Marqo/marqo-fashionSigLIP --run finetuned
+        (needs data/models/finetune_marqo-last2-ls.pt from scripts.finetune)
     add --set validation while tuning prompts or class texts
 """
 import argparse
@@ -39,17 +41,22 @@ def make_recognizer(kind: str, model: str) -> AttributeRecognizer:
     from wardrobe.models.embedder import OpenClipEmbedder
     from wardrobe.models.probe import ProbeAttributeRecognizer
     from wardrobe.models.zero_shot import ZeroShotAttributeRecognizer
-    from wardrobe.training.linear_probe import load_probes, probes_path
+    from wardrobe.training.linear_probe import PROBES_DIR, load_probes, probes_path
 
     if kind == "zero-shot":
         return ZeroShotAttributeRecognizer(OpenClipEmbedder(model))
-    _, probes = load_probes(probes_path(model))
-    return ProbeAttributeRecognizer(OpenClipEmbedder(model), probes)
+    if kind == "probe":
+        _, probes = load_probes(probes_path(model))
+        return ProbeAttributeRecognizer(OpenClipEmbedder(model), probes)
+    # "finetuned:<run>" -> data/models/finetune_<run>.pt; the original embedder answers pattern and material.
+    from wardrobe.models.finetuned import FinetunedAttributeRecognizer
+    return FinetunedAttributeRecognizer(PROBES_DIR / f"finetune_{kind.split(':', 1)[1]}.pt", OpenClipEmbedder(model))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--recognizer", choices=["ollama", "zero-shot", "probe"], default="ollama")
+    parser.add_argument("--recognizer", default="ollama",
+                        help="ollama, zero-shot, probe or finetuned:<run> (e.g. finetuned:marqo-last2-ls)")
     parser.add_argument("--model", default="qwen2.5vl:3b", help="Ollama model or open_clip model name")
     parser.add_argument("--run", help="name of the result file, defaults to the model name")
     parser.add_argument("--set", choices=SET_PATHS, default="test", help="which frozen sample to run on")
