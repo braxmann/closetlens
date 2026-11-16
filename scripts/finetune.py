@@ -8,6 +8,7 @@ Writes data/evaluation/finetune_<run>.csv (one row per epoch) and the best model
 import argparse
 import math
 import time
+from typing import cast
 
 import numpy as np
 import open_clip
@@ -15,6 +16,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 import torch
 from torch import nn
+from torch.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
 
 from scripts.make_test_set import SPLIT_PATH
@@ -23,7 +25,7 @@ from scripts.run_recognizer import RESULTS_DIR
 from wardrobe.evaluation.dataset import PRODUCTS_PATH, load_products
 from wardrobe.evaluation.split import ATTRIBUTE_MAPS, add_labels
 from wardrobe.training.finetune import (
-    MISSING, GarmentDataset, MultiHeadClassifier, balanced_weights, count_parameters, encode_labels,
+    MISSING, GarmentDataset, MultiHeadClassifier, SmoothedCrossEntropy, balanced_weights, count_parameters, encode_labels,
     eval_transform, freeze_except_last_blocks, train_transform,
 )
 from wardrobe.training.linear_probe import PROBES_DIR
@@ -88,6 +90,8 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr-heads", type=float, default=1e-3)
     parser.add_argument("--lr-backbone", type=float, default=2e-5)
+    parser.add_argument("--label-smoothing", type=float, default=0.0,
+                        help="e.g. 0.1: the target is 90 %% the right class, 10 %% spread over all classes")
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--limit", type=int, help="use only this many training images (quick test)")
     args = parser.parse_args()
@@ -122,16 +126,19 @@ def main() -> None:
 
     # --- Model: only the image tower of Marqo; the text tower is not needed for classification ---
     clip_model, _, _ = open_clip.create_model_and_transforms(args.model)
-    visual = clip_model.visual
+    # cast only informs the type checker: open_clip does not declare visual as an nn.Module.
+    visual = cast(nn.Module, clip_model.visual)
     del clip_model
     freeze_except_last_blocks(visual, args.unfreeze_blocks)
     model = MultiHeadClassifier(visual, feature_dim=768, classes=classes).to(device)
     trainable, total = count_parameters(model)
     print(f"{trainable / 1e6:.1f} M of {total / 1e6:.1f} M weights are trained ({args.unfreeze_blocks} blocks + heads)")
 
-    criteria = {a: nn.CrossEntropyLoss(weight=balanced_weights(train_labels[a], len(names)).to(device),
-                                       ignore_index=MISSING)
-                for a, names in classes.items()}
+    weights = {a: balanced_weights(train_labels[a], len(names)).to(device) for a, names in classes.items()}
+    # Label smoothing (see SmoothedCrossEntropy) only for training. The validation loss is always measured
+    # without smoothing, so its numbers stay comparable between runs.
+    criteria = {a: SmoothedCrossEntropy(w, args.label_smoothing) for a, w in weights.items()}
+    val_criteria = {a: SmoothedCrossEntropy(w) for a, w in weights.items()}
     # Two learning rates: the new heads start from random numbers and must move a lot; the pretrained blocks
     # only need a nudge, a large step would destroy what they already know ("catastrophic forgetting").
     backbone_parameters = [p for p in model.backbone.parameters() if p.requires_grad]
@@ -145,7 +152,7 @@ def main() -> None:
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer, lambda step: step / warmup if step < warmup else 0.5 * (1 + math.cos(math.pi * (step - warmup) / max(1, steps - warmup)))
     )
-    scaler = torch.amp.GradScaler(enabled=device == "cuda")
+    scaler = GradScaler(enabled=device == "cuda")
 
     # --- Training ---
     history, best = [], -1.0
@@ -157,7 +164,7 @@ def main() -> None:
             torch.cuda.reset_peak_memory_stats()
         start = time.perf_counter()
         train_loss, train_hits = run_epoch(model, train_loader, criteria, device, optimizer, scaler, scheduler)
-        val_loss, val_hits = run_epoch(model, val_loader, criteria, device)
+        val_loss, val_hits = run_epoch(model, val_loader, val_criteria, device)
         seconds = time.perf_counter() - start
 
         row = {"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss}
@@ -177,6 +184,7 @@ def main() -> None:
         if mean_score > best:
             best = mean_score
             torch.save({"model": args.model, "classes": classes, "unfreeze_blocks": args.unfreeze_blocks,
+                        "label_smoothing": args.label_smoothing,
                         "epoch": epoch, "state_dict": model.state_dict()}, checkpoint_path)
         pd.DataFrame(history).to_csv(RESULTS_DIR / f"finetune_{args.run}.csv", index=False)
 

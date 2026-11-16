@@ -205,13 +205,36 @@ bettet das Bild einmal ein, fragt die gespeicherten Probes und für alle anderen
   main_color knapp: 0,83 gegen 0,80. Auf Validierungsbildern: category 0,98, main_color 0,83, formality 0,94, 0,01 s pro Bild.
 - formality hat nur 100 Validierungsbeispiele; C=100 gewinnt dort mit 0,94 gegen 0,92, das ist im Rauschen.
 
+**Teil 2 erledigt: Partielles Feintuning** (`scripts/finetune.py`, RTX 2070). Marqo-Bildturm plus je ein Linear-Kopf pro
+Attribut; nur die letzten n der 12 ViT-Blöcke lernen. Zwei Lernraten (Köpfe 1e-3, Blöcke 2e-5), Warmup + Kosinus,
+Mixed Precision (float16), Augmentation nur Zuschnitt + Spiegeln (keine Farbänderung, main_color ist ein Label).
+
+| Lauf | trainiert | VRAM | Zeit | Val-Loss min → Ende | category | main_color | formality |
+|---|---|---|---|---|---|---|---|
+| Probe | 0,03 M | – | Sekunden | – | 0,980 | 0,826 | 0,94 |
+| 2 Blöcke, 5 Epochen | 21 M | 1,6 GB | 8 min | 1,21 → 1,61 | 0,977 | 0,846 | 0,95 |
+| 4 Blöcke, 3 Epochen | 36 M | 2,5 GB | 6,5 min | 1,22 → 1,38 | 0,980 | 0,844 | 0,94 |
+| 2 Blöcke + Label Smoothing 0,1 | 21 M | 1,6 GB | 8 min | 1,18 → 1,31 | 0,980 | 0,839 | 0,95 |
+
+- Feintuning schlägt den Probe bei main_color um ~2 Punkte, bei category gleichauf. Unterschiede zwischen den Läufen
+  liegen im Rauschen (main_color 0,839 vs. 0,846 = 4 von 570 Bildern).
+- **Overfitting am Loss ablesen:** Der Val-Loss steigt ab Epoche 2, obwohl die Genauigkeit weiter steigt. Das Modell
+  wird bei seinen Fehlern immer selbstsicherer. Label Smoothing bremst das deutlich (1,61 → 1,31), verhindert es aber nicht.
+- **Falle:** `nn.CrossEntropyLoss(weight=..., label_smoothing=...)` gewichtet den verschmierten Anteil mit dem Gewicht
+  *jeder* Klasse. Mit Rock = 44 kostete eine perfekt richtige T-Shirt-Antwort einen Loss von 32, category fiel auf 0,68.
+  Symptom: Train-Loss 5 statt 0,5. Lösung: eigene `SmoothedCrossEntropy`, die nur mit dem Gewicht der echten Klasse gewichtet.
+- Mehr freie Blöcke kosten VRAM, bringen hier aber kaum Genauigkeit.
+
 **Nächste Schritte in M6:**
-1. **Vergleich auf dem Testset** (einmalig, nichts mehr daran tunen): VLM, Zero-Shot und Probe nebeneinander mit Genauigkeit,
-   Latenz und VRAM. Damit ist M6 laut „Fertig, wenn“ erledigt.
-2. **In die App**: der Worker nutzt `ProbeAttributeRecognizer` statt des VLM. Offen: Die Marke kann nur das VLM lesen –
+1. **LoRA**: kleine Zusatzmatrizen in allen 12 Blöcken statt freigegebener Blöcke, im Vergleich zum partiellen Feintuning.
+2. **Feingetuntes Modell als Erkenner** (`AttributeRecognizer`) und **Vergleich auf dem Testset** (einmalig, nichts mehr
+   daran tunen): VLM, Zero-Shot, Probe und Feintuning mit Genauigkeit, Latenz und VRAM. Damit ist M6 laut „Fertig, wenn“ erledigt.
+3. **In die App**: der Worker nutzt den besten Erkenner statt des VLM. Offen: Die Marke kann nur das VLM lesen –
    weglassen oder das VLM nur dafür zusätzlich fragen?
-3. **Handyfotos prüfen**: ein paar eigene Teile fotografieren und schauen, ob die Shopfoto-Genauigkeit hält.
-4. LoRA-Feintuning nur, wenn Schritt 3 deutlich schlechter ausfällt.
+4. **Handyfotos prüfen**: ein paar eigene Teile fotografieren und schauen, ob die Shopfoto-Genauigkeit hält.
+
+Später möglich: dieselben Köpfe einmal in **Keras 3** (mit PyTorch als Unterbau, weil TensorFlow unter Windows keine GPU
+mehr unterstützt), um zu sehen, was `compile()`/`fit()` einem abnehmen.
 
 ### M7 – Verkleinern (1–2 Sessions)
 **Neu:** Quantisierung (z. B. int8 mit ONNX Runtime), Distillation (das VLM als Lehrer).

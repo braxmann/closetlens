@@ -110,6 +110,35 @@ def balanced_weights(labels: np.ndarray, n_classes: int) -> torch.Tensor:
     return torch.tensor(len(known) / (n_classes * np.maximum(counts, 1)))
 
 
+class SmoothedCrossEntropy(nn.Module):
+    """Cross-entropy with class weights and label smoothing, combined the way we want.
+
+    Label smoothing: the target is not "100 % shirt" but "(1 - smoothing) shirt + smoothing spread over all classes",
+    so the model is not rewarded for pushing its confidence towards 100 %.
+
+    Why not nn.CrossEntropyLoss(weight=..., label_smoothing=...)? PyTorch multiplies the spread-out part by the
+    weight of *every* class. With weights up to 44 (skirt), even a perfectly correct t-shirt then gets a loss of ~32
+    and every image pulls the model towards the rare classes. Here each image gets the weight of its *true* class
+    only, and the spread-out part is a plain average over the classes.
+    """
+
+    def __init__(self, weight: torch.Tensor, smoothing: float = 0.0):
+        super().__init__()
+        # register_buffer: part of the module (moves to the GPU with .to()), but not a weight that is trained.
+        self.register_buffer("weight", weight)
+        self.smoothing = smoothing
+
+    def forward(self, logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        known = target != MISSING
+        logits, target = logits[known], target[known]
+        log_probabilities = torch.log_softmax(logits, dim=1)
+        true_class = -log_probabilities.gather(1, target.unsqueeze(1)).squeeze(1)  # -log p(true class)
+        spread = -log_probabilities.mean(dim=1)  # -log p averaged over all classes
+        per_image = (1 - self.smoothing) * true_class + self.smoothing * spread
+        sample_weight = self.weight[target]
+        return (sample_weight * per_image).sum() / sample_weight.sum()
+
+
 def count_parameters(model: nn.Module) -> tuple[int, int]:
     """(trainable, total) number of weights."""
     total = sum(p.numel() for p in model.parameters())
