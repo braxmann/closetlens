@@ -240,8 +240,8 @@ nur bei formality ein gesicherter Unterschied. Vom Validierungs- zum Testset fal
 Farbe am stärksten: Was man auf einem Set auswählt, misst man dort zu gut.
 
 **Noch offen, bevor es mit M7 weitergeht:**
-1. **In die App**: der Worker nutzt einen der trainierten Erkenner statt des VLM. Offen: Die Marke kann nur das VLM lesen –
-   weglassen oder das VLM nur dafür zusätzlich fragen?
+1. ~~In die App~~ erledigt: Der Worker nutzt das Feintuning (Fallback Zero-Shot, falls der Checkpoint fehlt).
+   Die Marke bleibt vorerst leer und wird von Hand eingetragen.
 2. **Handyfotos prüfen**: ein paar eigene Teile fotografieren und schauen, ob die Shopfoto-Genauigkeit hält.
 
 Später möglich: dieselben Köpfe einmal in **Keras 3** (mit PyTorch als Unterbau, weil TensorFlow unter Windows keine GPU
