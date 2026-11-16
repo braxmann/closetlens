@@ -31,11 +31,19 @@ class ZeroShotAttributeRecognizer:
 
     def recognize_attributes(self, image: Image.Image) -> GarmentAttributes:
         image_vector = self.embedder.embed_images([image])[0]
+        # model_validate takes a dict and checks every value against the schema, like GarmentAttributes(**...).
+        return GarmentAttributes.model_validate(self.answers_for(image_vector))
+
+    def answers_for(self, image_vector: np.ndarray) -> dict[str, str | None]:
+        """Attribute -> value for an image that is already embedded.
+
+        Separate from recognize_attributes, so the probe recognizer can reuse it without embedding the image twice.
+        """
         answers = {}
         for attribute, (values, text_embeddings) in self.classes.items():
-            # TODO: similarity to every value of this attribute, pick the most similar one
+            # Similarity to every value of this attribute, pick the most similar one.
             similarities = text_embeddings @ image_vector
             best_fit = np.argmax(similarities)
             answers[attribute] = values[best_fit]
         answers["brand"] = None
-        return GarmentAttributes(**answers)
+        return answers

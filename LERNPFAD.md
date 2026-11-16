@@ -5,9 +5,13 @@ Vorgänger und Lernarchiv: `VisionLLMmini` (YOLO-Kaskade, Pose, MediaPipe-Hände
 
 ## So arbeiten wir
 
-Jeder Schritt läuft so ab: **Lesen** (mit Leitfrage) → **Vorhersage** (im Kopf) → **Teilaufgabe** (du schreibst) →
-**Review** (Rückfragen, abgestufte Hinweise) → **Experiment**.
-Wird eine Phase übersprungen, gibt es einen Hinweis.
+**Seit M6 (Nov 2026): schneller vorankommen, trotzdem verstehen.** Claude baut einen Schritt und erklärt danach den Code:
+was jedes Teil tut, warum es so gebaut ist und welche Alternative verworfen wurde. Pro Schritt läuft es so ab:
+**Vorhersage** (du tippst vorher, was rauskommt) → **Bauen** (Claude) → **Erklärung** (Code-Rundgang, deine Rückfragen) →
+**Experiment** (laufen lassen, Ergebnis mit deiner Vorhersage vergleichen).
+Selbst geschrieben wird nur noch, wo es sich besonders lohnt: kleine Teilaufgaben zu einem neuen Konzept, als Angebot.
+
+Bis M5 lief jeder Schritt so: Lesen → Vorhersage → Teilaufgabe (du schreibst) → Review → Experiment.
 
 Vor jeder größeren Stufe recherchieren wir kurz den aktuellen Stand, den VRAM-Bedarf und die Lizenzen, weil sich das Feld schnell bewegt.
 
@@ -30,7 +34,7 @@ Vor jeder größeren Stufe recherchieren wir kurz den aktuellen Stand, den VRAM-
 |---|---|---|
 | 1 Kleiderschrank | **M1** Freistellen + Beschreiben | `analyze.py foto.jpg` → PNG + JSON |
 | | **M2** Backend + Jobs + Tests | Upload per API, Attribute landen in SQLite |
-| | **M3** Mobile Web-Frontend (Retro) | Am Handy fotografieren → Teil erscheint im Schrank |
+| | **M3** Mobile Web-Frontend | Am Handy fotografieren → Teil erscheint im Schrank |
 | 2 Training + Data Science | **M4** Testdatensatz + VLM messen | Genauigkeit pro Attribut, die Messlatte |
 | | **M5** Embeddings | Ähnliche Teile, Textsuche, Zero-Shot |
 | | **M6** Eigener Klassifikator | Eigenes Modell vs. VLM auf demselben Testset |
@@ -193,6 +197,21 @@ Achtung: Training auf Shopfotos verbessert nicht automatisch die Erkennung auf H
   („a photo of a red …“) offenbar mehr Wissen bei als ein paar hundert gelabelte Bilder.
 - **formality:** Schon mit 5 Beispielen über Zero-Shot. Die Kurve wackelt, weil das Validierungsset hier klein ist.
 - Folge für die App: pro Attribut das jeweils bessere Verfahren nehmen, nicht ein Verfahren für alles.
+
+**Teil 1 erledigt: Probe als Erkenner.** `train_probe.py --save` wählt pro Attribut das beste C auf dem Validierungsset und
+speichert den Probe nur, wenn er Zero-Shot schlägt (`data/models/probes_<modell>.joblib`). `ProbeAttributeRecognizer`
+bettet das Bild einmal ein, fragt die gespeicherten Probes und für alle anderen Attribute Zero-Shot.
+- Mit **allen** Trainingsdaten (statt höchstens 500 pro Klasse wie in der Lernkurve) schlägt der Probe Zero-Shot auch bei
+  main_color knapp: 0,83 gegen 0,80. Auf Validierungsbildern: category 0,98, main_color 0,83, formality 0,94, 0,01 s pro Bild.
+- formality hat nur 100 Validierungsbeispiele; C=100 gewinnt dort mit 0,94 gegen 0,92, das ist im Rauschen.
+
+**Nächste Schritte in M6:**
+1. **Vergleich auf dem Testset** (einmalig, nichts mehr daran tunen): VLM, Zero-Shot und Probe nebeneinander mit Genauigkeit,
+   Latenz und VRAM. Damit ist M6 laut „Fertig, wenn“ erledigt.
+2. **In die App**: der Worker nutzt `ProbeAttributeRecognizer` statt des VLM. Offen: Die Marke kann nur das VLM lesen –
+   weglassen oder das VLM nur dafür zusätzlich fragen?
+3. **Handyfotos prüfen**: ein paar eigene Teile fotografieren und schauen, ob die Shopfoto-Genauigkeit hält.
+4. LoRA-Feintuning nur, wenn Schritt 3 deutlich schlechter ausfällt.
 
 ### M7 – Verkleinern (1–2 Sessions)
 **Neu:** Quantisierung (z. B. int8 mit ONNX Runtime), Distillation (das VLM als Lehrer).

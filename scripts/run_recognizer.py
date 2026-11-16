@@ -6,6 +6,8 @@ it arrives, so an interrupted run continues where it stopped when started again.
 Run from the project root:
     .venv/bin/python -m scripts.run_recognizer --model qwen2.5vl:3b
     .venv/bin/python -m scripts.run_recognizer --recognizer zero-shot --model hf-hub:Marqo/marqo-fashionSigLIP
+    .venv/bin/python -m scripts.run_recognizer --recognizer probe --model hf-hub:Marqo/marqo-fashionSigLIP --run probe
+        (needs the probes from: python -m scripts.train_probe --save)
     add --set validation while tuning prompts or class texts
 """
 import argparse
@@ -35,13 +37,19 @@ def make_recognizer(kind: str, model: str) -> AttributeRecognizer:
         return OllamaAttributeRecognizer(model)
     # Imported here so a VLM run does not need torch.
     from wardrobe.models.embedder import OpenClipEmbedder
+    from wardrobe.models.probe import ProbeAttributeRecognizer
     from wardrobe.models.zero_shot import ZeroShotAttributeRecognizer
-    return ZeroShotAttributeRecognizer(OpenClipEmbedder(model))
+    from wardrobe.training.linear_probe import load_probes, probes_path
+
+    if kind == "zero-shot":
+        return ZeroShotAttributeRecognizer(OpenClipEmbedder(model))
+    _, probes = load_probes(probes_path(model))
+    return ProbeAttributeRecognizer(OpenClipEmbedder(model), probes)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--recognizer", choices=["ollama", "zero-shot"], default="ollama")
+    parser.add_argument("--recognizer", choices=["ollama", "zero-shot", "probe"], default="ollama")
     parser.add_argument("--model", default="qwen2.5vl:3b", help="Ollama model or open_clip model name")
     parser.add_argument("--run", help="name of the result file, defaults to the model name")
     parser.add_argument("--set", choices=SET_PATHS, default="test", help="which frozen sample to run on")
