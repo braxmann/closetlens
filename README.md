@@ -3,7 +3,7 @@
 Ein digitaler Kleiderschrank: Kleidung fotografieren, automatisch freistellen und beschreiben lassen,
 durchsuchen, Outfits vorschlagen – und langfristig Outfits an einem 3D-Avatar anprobieren.
 
-> Status: **M5 – Embeddings** abgeschlossen (Zero-Shot, ähnliche Teile, Textsuche), als Nächstes M6 (siehe [LERNPFAD.md](LERNPFAD.md))
+> Status: **M6 – Eigener Klassifikator** gemessen (Linear Probe und Feintuning auf dem Testset), offen: Einbau in die App (siehe [LERNPFAD.md](LERNPFAD.md))
 
 ## Architektur
 
@@ -131,4 +131,54 @@ Gleiches Testset wie in M4:
 python -m scripts.make_validation_set
 python -m scripts.run_recognizer --recognizer zero-shot --model hf-hub:Marqo/marqo-fashionSigLIP [--set validation]
 python -m scripts.evaluate --run marqo-fashionSigLIP [--set validation]
+```
+
+## Eigener Klassifikator (M6)
+
+Zwei Wege, Marqo auf die eigenen Attribute zu trainieren, beide nur auf den Trainingsgruppen:
+- **Linear Probe** ([linear_probe.py](wardrobe/training/linear_probe.py)): Marqo bleibt eingefroren, pro Attribut eine
+  logistische Regression auf den einmal berechneten Embeddings. Trainiert in Sekunden auf der CPU.
+- **Partielles Feintuning** ([finetune.py](wardrobe/training/finetune.py)): Die letzten 2 der 12 ViT-Blöcke lernen mit,
+  je ein Kopf pro Attribut, Label Smoothing 0,1. 5 Epochen in 8 Minuten auf einer RTX 2070.
+
+Gleiches Testset wie in M4 und M5, einmal gemessen:
+
+| Attribut | VLM qwen2.5vl:3b | Zero-Shot Marqo | Linear Probe | Feintuning |
+|---|---|---|---|---|
+| category | 86 % (83–88) | 93 % (91–94) | **96 %** (95–97) | **96 %** (95–97) |
+| main_color | 67 % (64–69) | 75 % (72–77) | 76 % (74–78) | **77 %** (75–79) |
+| formality | 83 % bei 12 % Abdeckung | 77 % (70–82) | 90 % (85–93) | **94 %** (90–97) |
+| Zeit pro Bild (RTX 2070) | 1,9 s | 0,01 s | 0,02 s | 0,05 s |
+| VRAM | 2,8 GB (laut `ollama ps`) | 0,85 GB | 0,85 GB | 1,6 GB |
+| Training | – | – | Sekunden (CPU) | 8 min (GPU) |
+
+**Ergebnisse**
+- Beide trainierten Modelle schlagen VLM und Zero-Shot deutlich bei category und formality, bei main_color nur knapp.
+- **Probe gegen Feintuning:** bei category gleich (7 gegen 8 Bilder, die nur einer richtig hat). Bei main_color hat das
+  Feintuning 41 Bilder richtig, die der Probe falsch hat, umgekehrt 29: Das ist kein gesicherter Unterschied
+  (McNemar p ≈ 0,15). Bei formality 8 gegen 0 (p < 0,01), allerdings bei nur 200 Bildern.
+- **Vom Validierungs- zum Testset fallen alle Verfahren ab**, die trainierten bei main_color stärker (−6,5 bis −7 Punkte)
+  als Zero-Shot (−5). Was auf dem Validierungsset ausgewählt wird, ist dort immer etwas zu gut gemessen.
+- Der Rest bei main_color liegt zum Teil an den Labels: Laut Audit ist etwa jedes fünfte Farb-Label falsch oder strittig.
+
+**Methodik**
+- Alle Entscheidungen (C des Probes, Anzahl Blöcke, Label Smoothing, Wahl des Feintuning-Laufs) fielen auf dem
+  Validierungsset. Ausgewählt wurde der günstigste von vier gleichauf liegenden Feintuning-Läufen (siehe LERNPFAD).
+- Gewichtung seltener Klassen bei beiden Verfahren gleich (`class_weight="balanced"` bzw. dieselbe Formel im Loss).
+- Pattern und material kommen bei Probe und Feintuning weiter von Zero-Shot.
+- VRAM bei den PyTorch-Modellen: Spitzenwert von `torch.cuda.max_memory_allocated`, ohne den CUDA-Grundbedarf.
+
+**Einschränkungen**
+- Studiofotos, keine Handyfotos. Ob die Genauigkeit auf eigenen Fotos hält, ist noch offen.
+- Das feingetunte Modell passt nicht mehr zum Textturm. Textsuche und ähnliche Teile müssen das Original-Marqo nutzen.
+
+**Reproduzieren**
+```bash
+python -m scripts.cache_features                 # Embeddings aller Produktbilder, einmalig
+python -m scripts.train_probe --save             # Grid Search über C, speichert die Probes
+python -m scripts.learning_curve                 # Genauigkeit über Beispiele pro Klasse
+python -m scripts.finetune --label-smoothing 0.1 --run marqo-last2-ls   # [--method lora]
+python -m scripts.run_recognizer --recognizer probe --model hf-hub:Marqo/marqo-fashionSigLIP --run probe
+python -m scripts.run_recognizer --recognizer finetuned:marqo-last2-ls --model hf-hub:Marqo/marqo-fashionSigLIP --run finetuned
+python -m scripts.evaluate --run probe           # bzw. --run finetuned
 ```

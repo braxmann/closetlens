@@ -233,12 +233,16 @@ Mixed Precision (float16), Augmentation nur Zuschnitt + Spiegeln (keine Farbänd
 - LoRA hat den niedrigsten Val-Loss aller Läufe, ohne Smoothing: die kleine Änderung kann weniger auswendig lernen.
   Die Genauigkeit liegt aber gleichauf mit den anderen.
 
-**Nächste Schritte in M6:**
-1. **Feingetuntes Modell als Erkenner** (`AttributeRecognizer`) und **Vergleich auf dem Testset** (einmalig, nichts mehr
-   daran tunen): VLM, Zero-Shot, Probe und Feintuning mit Genauigkeit, Latenz und VRAM. Damit ist M6 laut „Fertig, wenn“ erledigt.
-2. **In die App**: der Worker nutzt den besten Erkenner statt des VLM. Offen: Die Marke kann nur das VLM lesen –
+**Teil 3 erledigt (Nov 2026): Vergleich auf dem Testset** – damit ist M6 laut „Fertig, wenn“ erledigt.
+Ergebnis im [README](README.md#eigener-klassifikator-m6). Kurz: Probe und Feintuning schlagen VLM und Zero-Shot klar bei
+category (96 % gegen 86 / 93 %) und formality, bei main_color nur knapp (76–77 % gegen 75 %). Feintuning gegen Probe ist
+nur bei formality ein gesicherter Unterschied. Vom Validierungs- zum Testset fallen alle ab, die trainierten bei der
+Farbe am stärksten: Was man auf einem Set auswählt, misst man dort zu gut.
+
+**Noch offen, bevor es mit M7 weitergeht:**
+1. **In die App**: der Worker nutzt einen der trainierten Erkenner statt des VLM. Offen: Die Marke kann nur das VLM lesen –
    weglassen oder das VLM nur dafür zusätzlich fragen?
-3. **Handyfotos prüfen**: ein paar eigene Teile fotografieren und schauen, ob die Shopfoto-Genauigkeit hält.
+2. **Handyfotos prüfen**: ein paar eigene Teile fotografieren und schauen, ob die Shopfoto-Genauigkeit hält.
 
 Später möglich: dieselben Köpfe einmal in **Keras 3** (mit PyTorch als Unterbau, weil TensorFlow unter Windows keine GPU
 mehr unterstützt), um zu sehen, was `compile()`/`fit()` einem abnehmen.
