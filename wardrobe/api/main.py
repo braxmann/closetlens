@@ -1,4 +1,6 @@
+import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from threading import Event, Thread
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
@@ -7,16 +9,35 @@ from sqlmodel import Session, select
 
 from wardrobe.api.dependencies import engine, get_session, get_storage, storage
 from wardrobe.jobs.worker import reset_stuck_garments, run_worker
-from wardrobe.models.attribute_recognizer import OllamaAttributeRecognizer
+from wardrobe.models.attribute_recognizer import AttributeRecognizer
 from wardrobe.models.attributes import GarmentAttributes
 from wardrobe.models.background_remover import RembgBackgroundRemover
-from wardrobe.models.embedder import OpenClipEmbedder
+from wardrobe.models.embedder import Embedder, OpenClipEmbedder
+from wardrobe.models.finetuned import FinetunedAttributeRecognizer
+from wardrobe.models.zero_shot import ZeroShotAttributeRecognizer
 from wardrobe.services.garments import correct_garment, create_garment
 from wardrobe.storage.database import Garment
 from wardrobe.storage.files import FileStorage
 from wardrobe.web.pages import STATIC_DIR
 from wardrobe.web.pages import router as pages_router
-from wardrobe.models.embedder import OpenClipEmbedder
+
+logger = logging.getLogger(__name__)
+
+# M6: Marqo with the last 2 blocks fine-tuned, the winner on the test set (see README).
+# Created by scripts/finetune.py; data/ is not in git, so on a fresh machine the file has to be trained or copied first.
+FINETUNED_CHECKPOINT = Path("data/models/finetune_marqo-last2-ls.pt")
+
+
+def make_recognizer(embedder: Embedder) -> AttributeRecognizer:
+    """The fine-tuned model if its checkpoint exists, otherwise zero-shot (no training needed, a bit less accurate).
+
+    The brand stays empty in both cases: only the VLM could read it, and it is entered by hand in the detail view.
+    """
+    if FINETUNED_CHECKPOINT.exists():
+        return FinetunedAttributeRecognizer(FINETUNED_CHECKPOINT, embedder)
+    logger.warning("%s not found, falling back to zero-shot attribute recognition", FINETUNED_CHECKPOINT)
+    return ZeroShotAttributeRecognizer(embedder)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,9 +47,10 @@ async def lifespan(app: FastAPI):
 
     # Create objects (with brackets), not just name the classes. Loaded once for the whole server.
     remover = RembgBackgroundRemover("birefnet-general")
-    recognizer = OllamaAttributeRecognizer("qwen2.5vl:3b")
     # Fashion-specific, as accurate as SigLIP2 in M5 and three times faster.
     embedder = OpenClipEmbedder("hf-hub:Marqo/marqo-fashionSigLIP")
+    # The recognizer shares the embedder: pattern and material come from zero-shot with the original Marqo.
+    recognizer = make_recognizer(embedder)
     # The same object for the worker (images) and the search (texts): the model is loaded only once.
     app.state.embedder = embedder
 
