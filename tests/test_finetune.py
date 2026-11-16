@@ -3,7 +3,7 @@ import torch
 from torch import nn
 
 from wardrobe.training.finetune import (
-    MISSING, MultiHeadClassifier, SmoothedCrossEntropy, balanced_weights, encode_labels,
+    MISSING, LoRALinear, MultiHeadClassifier, SmoothedCrossEntropy, balanced_weights, encode_labels,
 )
 
 
@@ -56,3 +56,26 @@ def test_smoothing_keeps_a_confident_correct_answer_cheap_despite_large_weights(
     # (1 - 0.1) * ~0 + 0.1 * (~0 + 10) / 2 = ~0.5, independent of the weight 44
     assert loss < 1.0
     assert nn.CrossEntropyLoss(weight=weight, label_smoothing=0.1)(logits, target) > 10
+
+
+def test_lora_starts_as_the_original_layer_and_only_trains_its_small_matrices():
+    base = nn.Linear(6, 4)
+    lora = LoRALinear(base, rank=2)
+    x = torch.randn(3, 6)
+
+    # B starts at zero: before training, the output is exactly the original layer's output.
+    assert torch.allclose(lora(x), base(x))
+    trainable = {name for name, p in lora.named_parameters() if p.requires_grad}
+    assert trainable == {"down.weight", "up.weight"}  # the original weights stay frozen
+
+
+def test_lora_can_change_the_output_after_a_training_step():
+    lora = LoRALinear(nn.Linear(6, 4), rank=2)
+    optimizer = torch.optim.SGD([p for p in lora.parameters() if p.requires_grad], lr=0.1)
+    x = torch.randn(3, 6)
+    before = lora(x).detach()
+
+    lora(x).sum().backward()
+    optimizer.step()
+
+    assert not torch.allclose(lora(x), before)

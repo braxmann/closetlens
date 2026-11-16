@@ -215,6 +215,7 @@ Mixed Precision (float16), Augmentation nur Zuschnitt + Spiegeln (keine Farbänd
 | 2 Blöcke, 5 Epochen | 21 M | 1,6 GB | 8 min | 1,21 → 1,61 | 0,977 | 0,846 | 0,95 |
 | 4 Blöcke, 3 Epochen | 36 M | 2,5 GB | 6,5 min | 1,22 → 1,38 | 0,980 | 0,844 | 0,94 |
 | 2 Blöcke + Label Smoothing 0,1 | 21 M | 1,6 GB | 8 min | 1,18 → 1,31 | 0,980 | 0,839 | 0,95 |
+| LoRA Rang 8 (qkv + proj, alle 12 Blöcke), 5 Epochen | 0,46 M | 3,8 GB | 13 min | 1,12 → 1,17 | 0,980 | 0,840 | 0,93 |
 
 - Feintuning schlägt den Probe bei main_color um ~2 Punkte, bei category gleichauf. Unterschiede zwischen den Läufen
   liegen im Rauschen (main_color 0,839 vs. 0,846 = 4 von 570 Bildern).
@@ -224,14 +225,20 @@ Mixed Precision (float16), Augmentation nur Zuschnitt + Spiegeln (keine Farbänd
   *jeder* Klasse. Mit Rock = 44 kostete eine perfekt richtige T-Shirt-Antwort einen Loss von 32, category fiel auf 0,68.
   Symptom: Train-Loss 5 statt 0,5. Lösung: eigene `SmoothedCrossEntropy`, die nur mit dem Gewicht der echten Klasse gewichtet.
 - Mehr freie Blöcke kosten VRAM, bringen hier aber kaum Genauigkeit.
+- **LoRA** (selbst geschrieben, `LoRALinear`): W bleibt eingefroren, gelernt wird die Änderung als B·A mit Rang 8.
+  50-mal weniger trainierte Gewichte, aber **mehr VRAM und doppelt so langsam** wie 2 freie Blöcke: Der Gradient muss
+  durch alle 12 Blöcke zurück, also müssen alle Zwischenergebnisse gespeichert bleiben. LoRA spart Optimizer-Speicher und
+  Dateigröße (die Änderung wäre ~2 MB statt 370 MB), nicht Aktivierungsspeicher. Den Nutzen hat es bei großen Modellen,
+  wo schon die Gewichte samt Optimizer nicht in den Speicher passen.
+- LoRA hat den niedrigsten Val-Loss aller Läufe, ohne Smoothing: die kleine Änderung kann weniger auswendig lernen.
+  Die Genauigkeit liegt aber gleichauf mit den anderen.
 
 **Nächste Schritte in M6:**
-1. **LoRA**: kleine Zusatzmatrizen in allen 12 Blöcken statt freigegebener Blöcke, im Vergleich zum partiellen Feintuning.
-2. **Feingetuntes Modell als Erkenner** (`AttributeRecognizer`) und **Vergleich auf dem Testset** (einmalig, nichts mehr
+1. **Feingetuntes Modell als Erkenner** (`AttributeRecognizer`) und **Vergleich auf dem Testset** (einmalig, nichts mehr
    daran tunen): VLM, Zero-Shot, Probe und Feintuning mit Genauigkeit, Latenz und VRAM. Damit ist M6 laut „Fertig, wenn“ erledigt.
-3. **In die App**: der Worker nutzt den besten Erkenner statt des VLM. Offen: Die Marke kann nur das VLM lesen –
+2. **In die App**: der Worker nutzt den besten Erkenner statt des VLM. Offen: Die Marke kann nur das VLM lesen –
    weglassen oder das VLM nur dafür zusätzlich fragen?
-4. **Handyfotos prüfen**: ein paar eigene Teile fotografieren und schauen, ob die Shopfoto-Genauigkeit hält.
+3. **Handyfotos prüfen**: ein paar eigene Teile fotografieren und schauen, ob die Shopfoto-Genauigkeit hält.
 
 Später möglich: dieselben Köpfe einmal in **Keras 3** (mit PyTorch als Unterbau, weil TensorFlow unter Windows keine GPU
 mehr unterstützt), um zu sehen, was `compile()`/`fit()` einem abnehmen.

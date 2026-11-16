@@ -25,8 +25,8 @@ from scripts.run_recognizer import RESULTS_DIR
 from wardrobe.evaluation.dataset import PRODUCTS_PATH, load_products
 from wardrobe.evaluation.split import ATTRIBUTE_MAPS, add_labels
 from wardrobe.training.finetune import (
-    MISSING, GarmentDataset, MultiHeadClassifier, SmoothedCrossEntropy, balanced_weights, count_parameters, encode_labels,
-    eval_transform, freeze_except_last_blocks, train_transform,
+    MISSING, GarmentDataset, MultiHeadClassifier, SmoothedCrossEntropy, add_lora, balanced_weights, count_parameters,
+    encode_labels, eval_transform, freeze_except_last_blocks, train_transform,
 )
 from wardrobe.training.linear_probe import PROBES_DIR
 
@@ -85,16 +85,24 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--model", default="hf-hub:Marqo/marqo-fashionSigLIP")
     parser.add_argument("--run", default="marqo-last2", help="name for the result files")
-    parser.add_argument("--unfreeze-blocks", type=int, default=2, help="how many of the 12 ViT blocks learn")
+    parser.add_argument("--method", choices=["blocks", "lora"], default="blocks",
+                        help="blocks: the last n ViT blocks learn; lora: small LoRA matrices in all 12 blocks")
+    parser.add_argument("--unfreeze-blocks", type=int, default=2, help="with --method blocks: how many of the 12 learn")
+    parser.add_argument("--lora-rank", type=int, default=8)
+    parser.add_argument("--lora-alpha", type=float, default=16)
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr-heads", type=float, default=1e-3)
-    parser.add_argument("--lr-backbone", type=float, default=2e-5)
+    parser.add_argument("--lr-backbone", type=float, help="default: 2e-5 for blocks, 1e-4 for lora")
     parser.add_argument("--label-smoothing", type=float, default=0.0,
                         help="e.g. 0.1: the target is 90 %% the right class, 10 %% spread over all classes")
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--limit", type=int, help="use only this many training images (quick test)")
     args = parser.parse_args()
+    if args.lr_backbone is None:
+        # LoRA matrices start at zero like the heads and need bigger steps than pretrained weights. They cannot
+        # wreck the model as easily, because together they can only make a low-rank change.
+        args.lr_backbone = 1e-4 if args.method == "lora" else 2e-5
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(0)
 
@@ -129,10 +137,15 @@ def main() -> None:
     # cast only informs the type checker: open_clip does not declare visual as an nn.Module.
     visual = cast(nn.Module, clip_model.visual)
     del clip_model
-    freeze_except_last_blocks(visual, args.unfreeze_blocks)
+    if args.method == "lora":
+        add_lora(visual, args.lora_rank, args.lora_alpha)
+        what = f"LoRA rank {args.lora_rank} in all blocks + heads"
+    else:
+        freeze_except_last_blocks(visual, args.unfreeze_blocks)
+        what = f"{args.unfreeze_blocks} blocks + heads"
     model = MultiHeadClassifier(visual, feature_dim=768, classes=classes).to(device)
     trainable, total = count_parameters(model)
-    print(f"{trainable / 1e6:.1f} M of {total / 1e6:.1f} M weights are trained ({args.unfreeze_blocks} blocks + heads)")
+    print(f"{trainable / 1e6:.2f} M of {total / 1e6:.1f} M weights are trained ({what})")
 
     weights = {a: balanced_weights(train_labels[a], len(names)).to(device) for a, names in classes.items()}
     # Label smoothing (see SmoothedCrossEntropy) only for training. The validation loss is always measured
@@ -183,8 +196,10 @@ def main() -> None:
         mean_score = np.mean([row[f"val_{a}"] for a in classes])
         if mean_score > best:
             best = mean_score
-            torch.save({"model": args.model, "classes": classes, "unfreeze_blocks": args.unfreeze_blocks,
-                        "label_smoothing": args.label_smoothing,
+            # Everything needed to rebuild the same model before loading the weights (LoRA layers must exist first).
+            torch.save({"model": args.model, "classes": classes, "method": args.method,
+                        "unfreeze_blocks": args.unfreeze_blocks, "lora_rank": args.lora_rank,
+                        "lora_alpha": args.lora_alpha, "label_smoothing": args.label_smoothing,
                         "epoch": epoch, "state_dict": model.state_dict()}, checkpoint_path)
         pd.DataFrame(history).to_csv(RESULTS_DIR / f"finetune_{args.run}.csv", index=False)
 

@@ -100,6 +100,44 @@ def freeze_except_last_blocks(visual: nn.Module, n_blocks: int) -> None:
             parameter.requires_grad = True
 
 
+class LoRALinear(nn.Module):
+    """LoRA ("Low-Rank Adaptation"): a frozen linear layer plus a small trainable correction.
+
+    A linear layer computes y = W x with a large matrix W (e.g. 768 x 2304). Fine-tuning would change all of W.
+    LoRA keeps W frozen and learns the change as the product of two thin matrices: y = W x + scale * B (A x).
+    A squeezes the 768 inputs into `rank` numbers (e.g. 8), B expands them back to the outputs.
+    For the qkv layer that is 8 * (768 + 2304) = 24,576 trainable numbers instead of 1.8 million.
+    """
+
+    def __init__(self, base: nn.Linear, rank: int = 8, alpha: float = 16):
+        super().__init__()
+        self.base = base
+        for parameter in base.parameters():
+            parameter.requires_grad = False
+        self.down = nn.Linear(base.in_features, rank, bias=False)  # A
+        self.up = nn.Linear(rank, base.out_features, bias=False)  # B
+        # B starts at zero, so at the start the correction is zero and the model behaves exactly like the original.
+        # A starts random (the nn.Linear default), otherwise the gradient for B would be zero as well.
+        nn.init.zeros_(self.up.weight)
+        # alpha / rank: changing the rank does not change how strong the correction is at the same learning rate.
+        self.scale = alpha / rank
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.base(x) + self.up(self.down(x)) * self.scale
+
+
+def add_lora(visual: nn.Module, rank: int, alpha: float, layers: tuple[str, ...] = ("qkv", "proj")) -> None:
+    """Freeze the whole image tower and put LoRA into the attention layers of every one of the 12 blocks.
+
+    Replacing block.attn.qkv works because the block calls self.qkv(x) in its forward(): it now calls our wrapper.
+    """
+    for parameter in visual.parameters():
+        parameter.requires_grad = False
+    for block in visual.trunk.blocks:
+        for name in layers:
+            setattr(block.attn, name, LoRALinear(getattr(block.attn, name), rank, alpha))
+
+
 def balanced_weights(labels: np.ndarray, n_classes: int) -> torch.Tensor:
     """Loss weight per class, n_samples / (n_classes * count): rare classes count more.
 
