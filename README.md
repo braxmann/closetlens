@@ -42,6 +42,8 @@ py -3.12 -m venv .venv
 # PyTorch mit CUDA zuerst, sonst installiert pip die CPU-Version
 .venv\Scripts\python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 .venv\Scripts\python -m pip install -r requirements.txt
+# onnxruntime passend zu PyTorchs CUDA 12.8 (ab 1.27 ist es für CUDA 13 gebaut und fällt still auf die CPU zurück)
+.venv\Scripts\python -m pip install "onnxruntime-gpu==1.26.*"
 ```
 
 Außerdem: [Ollama](https://ollama.com) mit einem Vision-Modell, z. B. `ollama pull qwen2.5vl:3b`.

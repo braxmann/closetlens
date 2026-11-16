@@ -179,6 +179,21 @@ Dein Modell ist eine weitere Implementierung von `AttributeRecognizer`.
 (kontrastives Training braucht große Batches). Trainiert wird nur auf den Trainingsgruppen aus `split.parquet`.
 Achtung: Training auf Shopfotos verbessert nicht automatisch die Erkennung auf Handyfotos.
 
+**Lernkurve (Nov 2026):** Linear Probe auf Marqo-Features, Validierungsgenauigkeit bei n Beispielen pro Klasse
+(Mittel über 3 Seeds, Bild: `data/evaluation/learning_curve.png`). Zero-Shot auf demselben Validierungsset in Klammern.
+
+| Attribut | 5 | 20 | 50 | 100 | 500 | Zero-Shot |
+|---|---|---|---|---|---|---|
+| category | 0,81 | 0,92 | 0,95 | 0,97 | 0,98 | (0,96) |
+| main_color | 0,37 | 0,55 | 0,67 | 0,73 | 0,79 | (0,80) |
+| formality | 0,87 | 0,85 | 0,89 | 0,89 | 0,92 | (0,82) |
+
+- **category:** Ab etwa 100 Beispielen pro Klasse schlägt der Probe Zero-Shot, danach flacht die Kurve ab.
+- **main_color:** Selbst mit 500 Beispielen pro Klasse nicht besser als Zero-Shot. Für Farben trägt der Text
+  („a photo of a red …“) offenbar mehr Wissen bei als ein paar hundert gelabelte Bilder.
+- **formality:** Schon mit 5 Beispielen über Zero-Shot. Die Kurve wackelt, weil das Validierungsset hier klein ist.
+- Folge für die App: pro Attribut das jeweils bessere Verfahren nehmen, nicht ein Verfahren für alles.
+
 ### M7 – Verkleinern (1–2 Sessions)
 **Neu:** Quantisierung (z. B. int8 mit ONNX Runtime), Distillation (das VLM als Lehrer).
 **Fertig, wenn:** Eine Tabelle oder Kurve zeigt, was dich jedes eingesparte MB an Genauigkeit kostet.

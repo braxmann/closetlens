@@ -65,9 +65,6 @@ def main() -> None:
     path = RESULTS_DIR / "learning_curve.png"
     fig.savefig(path, dpi=150)
     print(f"Written to {path}")
-    fig, ax = plt.subplots()
-    summary.loc["category"]
-    
 
 
 if __name__ == "__main__":
