@@ -242,7 +242,10 @@ Farbe am stärksten: Was man auf einem Set auswählt, misst man dort zu gut.
 **Noch offen, bevor es mit M7 weitergeht:**
 1. ~~In die App~~ erledigt: Der Worker nutzt das Feintuning (Fallback Zero-Shot, falls der Checkpoint fehlt).
    Die Marke bleibt vorerst leer und wird von Hand eingetragen.
-2. **Handyfotos prüfen**: ein paar eigene Teile fotografieren und schauen, ob die Shopfoto-Genauigkeit hält.
+2. ~~Handyfotos prüfen~~ zurückgestellt (Nov 2026). Offen bleibt damit, ob die Shopfoto-Genauigkeit auf eigenen
+   Fotos hält; das zeigt sich spätestens beim Benutzen der App.
+
+**M6 abgeschlossen.**
 
 Später möglich: dieselben Köpfe einmal in **Keras 3** (mit PyTorch als Unterbau, weil TensorFlow unter Windows keine GPU
 mehr unterstützt), um zu sehen, was `compile()`/`fit()` einem abnehmen.

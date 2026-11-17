@@ -3,7 +3,7 @@
 Ein digitaler Kleiderschrank: Kleidung fotografieren, automatisch freistellen und beschreiben lassen,
 durchsuchen, Outfits vorschlagen – und langfristig Outfits an einem 3D-Avatar anprobieren.
 
-> Status: **M6 – Eigener Klassifikator** gemessen (Linear Probe und Feintuning auf dem Testset), offen: Einbau in die App (siehe [LERNPFAD.md](LERNPFAD.md))
+> Status: **M6 – Eigener Klassifikator** abgeschlossen (feingetuntes Marqo erkennt die Attribute in der App), als Nächstes M7 (siehe [LERNPFAD.md](LERNPFAD.md))
 
 ## Architektur
 
