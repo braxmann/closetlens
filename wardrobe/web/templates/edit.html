@@ -1,69 +1,75 @@
 {% extends "base.html" %}
 
-{% block title %}Eigenschaften – Kleiderschrank{% endblock %}
+{% block title %}{{ (garment.category or "Teil") | label }} – Kleiderschrank{% endblock %}
 
 {% block content %}
-<!-- Styled like a Windows "Properties" dialog. -->
-<div class="window">
-  <div class="title-bar">
-    <div class="title-bar-text">Eigenschaften von {{ (garment.category or "Teil") | label }} #{{ garment.id }}</div>
-    <div class="title-bar-controls">
-      <a href="/" aria-label="Schließen" class="close-link"><button aria-label="Close" tabindex="-1"></button></a>
-    </div>
+<a class="back" href="/">← Zurück</a>
+
+<header class="masthead">
+  <h1>{{ (garment.category or "Teil") | label }}</h1>
+  <p class="meta">Nr. {{ garment.id }}</p>
+</header>
+
+<div class="detail">
+  <div class="preview">
+    {% if garment.cutout_path %}
+      {# The full cut-out: heavy, but only loaded for this one garment. #}
+      <img src="/cutouts/{{ garment.cutout_path | filename }}" alt="{{ (garment.category or 'Kleidungsstück') | label }}">
+    {% else %}
+      <p>Noch kein freigestelltes Bild ({{ garment.status.value | label }}).</p>
+    {% endif %}
   </div>
 
-  <div class="window-body">
-    <div class="preview sunken-panel">
-      {% if garment.cutout_path %}
-        {# The full cut-out: heavy, but only loaded for this one garment. #}
-        <img src="/cutouts/{{ garment.cutout_path | filename }}" alt="{{ (garment.category or 'Kleidungsstück') | label }}">
-      {% else %}
-        <p>Noch kein freigestelltes Bild ({{ garment.status.value | label }}).</p>
-      {% endif %}
+  <!-- A plain HTML form: the browser sends it as POST; the server saves and redirects back to the gallery. -->
+  <form method="post" action="/items/{{ garment.id }}" class="properties">
+    {# Required fields: no empty option, because the schema needs a value. #}
+    {% for field, title in [("category", "Art"), ("main_color", "Hauptfarbe"), ("pattern", "Muster")] %}
+      <div class="field">
+        <label for="{{ field }}">{{ title }}</label>
+        <select id="{{ field }}" name="{{ field }}">
+          {% for value in options[field] %}
+            <option value="{{ value }}" {% if value == garment[field] %}selected{% endif %}>{{ value | label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% endfor %}
+
+    {# Optional fields: the empty option stands for "unknown" (None). #}
+    {% for field, title in [("material", "Material"), ("formality", "Anlass")] %}
+      <div class="field">
+        <label for="{{ field }}">{{ title }}</label>
+        <select id="{{ field }}" name="{{ field }}">
+          <option value="">unbekannt</option>
+          {% for value in options[field] %}
+            <option value="{{ value }}" {% if value == garment[field] %}selected{% endif %}>{{ value | label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% endfor %}
+
+    <div class="field">
+      <label for="brand">Marke</label>
+      <input id="brand" name="brand" type="text" value="{{ garment.brand or '' }}" placeholder="unbekannt">
     </div>
 
-    <!-- A plain HTML form: the browser sends it as POST; the server saves and redirects back to the gallery. -->
-    <form method="post" action="/items/{{ garment.id }}" class="properties">
-      {# Required fields: no empty option, because the schema needs a value. #}
-      {% for field, title in [("category", "Art"), ("main_color", "Hauptfarbe"), ("pattern", "Muster")] %}
-        <div class="field-row-stacked">
-          <label for="{{ field }}">{{ title }}</label>
-          <select id="{{ field }}" name="{{ field }}">
-            {% for value in options[field] %}
-              <option value="{{ value }}" {% if value == garment[field] %}selected{% endif %}>{{ value | label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-      {% endfor %}
-
-      {# Optional fields: the empty option stands for "unknown" (None). #}
-      {% for field, title in [("material", "Material"), ("formality", "Anlass")] %}
-        <div class="field-row-stacked">
-          <label for="{{ field }}">{{ title }}</label>
-          <select id="{{ field }}" name="{{ field }}">
-            <option value="">unbekannt</option>
-            {% for value in options[field] %}
-              <option value="{{ value }}" {% if value == garment[field] %}selected{% endif %}>{{ value | label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-      {% endfor %}
-
-      <div class="field-row-stacked">
-        <label for="brand">Marke</label>
-        <input id="brand" name="brand" type="text" value="{{ garment.brand or '' }}" placeholder="unbekannt">
-      </div>
-
-      <div class="buttons">
-        <button type="submit" class="default">OK</button>
-        <a href="/"><button type="button" tabindex="-1">Abbrechen</button></a>
-      </div>
-    </form>
-
-    <div class="status-bar">
-      <p class="status-bar-field">Status: {{ garment.status.value | label }}</p>
-      <p class="status-bar-field">Aufgenommen: {{ garment.created_at.strftime("%d.%m.%Y") }}</p>
+    <div class="buttons">
+      <button type="submit" class="button">Speichern</button>
+      <a class="cancel" href="/">Abbrechen</a>
     </div>
-  </div>
+
+    <p class="meta">{{ garment.status.value | label }} · Aufgenommen {{ garment.created_at.strftime("%d.%m.%Y") }}</p>
+  </form>
 </div>
+
+{% if similar %}
+  <!-- The garments whose images are closest in the embedding space. -->
+  <section class="similar">
+    <h2 class="section-title">Ähnliche Teile</h2>
+    <ul class="icons">
+      {% for item in similar %}
+        {% with garment = item %}{% include "_icon.html" %}{% endwith %}
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}
 {% endblock %}

@@ -2,6 +2,8 @@
 
 # M1: background removal + attributes via local VLM
 # Mac / no NVIDIA:  rembg[cpu]      Windows with NVIDIA:  rembg[gpu]  (instead of the line below)
+# With rembg[gpu] also pin onnxruntime-gpu==1.26.* : from 1.27 on it is built for CUDA 13, while PyTorch
+# (cu128) brings CUDA 12.8 + cuDNN 9. 1.26 uses PyTorch's DLLs; a CUDA 13 build silently falls back to the CPU.
 rembg[cpu,cli]
 ollama
 pydantic
@@ -31,3 +33,6 @@ transformers
 open_clip_torch
 sentencepiece
 protobuf
+
+# M6: training
+matplotlib

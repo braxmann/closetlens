@@ -11,11 +11,11 @@
       {# The small thumbnail has the same file name as the cut-out, so the gallery loads ~50 KB instead of ~15 MB. #}
       <img src="/thumbnails/{{ garment.cutout_path | filename }}" alt="{{ (garment.category or 'Kleidungsstück') | label }}">
     {% elif garment.status.value == "processing" %}
-      <div class="placeholder"><div class="progress-indicator"><span class="progress-indicator-bar busy-bar"></span></div></div>
+      <div class="placeholder"><span class="busy-line"></span></div>
     {% elif garment.status.value == "failed" %}
-      <div class="placeholder failed">✕</div>
+      <div class="placeholder failed">Fehler</div>
     {% else %}
-      <div class="placeholder">⧗</div>
+      <div class="placeholder">Wartet</div>
     {% endif %}
   </a>
   <span>{{ (garment.category or garment.status.value) | label }}</span>

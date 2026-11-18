@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-
 from sqlalchemy import Engine
 from sqlmodel import Field, SQLModel, create_engine
 
@@ -32,6 +31,10 @@ class Garment(SQLModel, table=True):
     material: str | None = None
     formality: str | None = None
 
+    # Image embedding of the cutout as float32 bytes (np.frombuffer(..., dtype=np.float32)), set by the worker.
+    # exclude=True: raw bytes cannot be written as JSON, and API clients have no use for them.
+    embedding: bytes | None = Field(default=None, exclude=True)
+    embedding_model:str| None = None
 
 def create_db(path: Path = DATABASE_PATH) -> Engine:
     path.parent.mkdir(parents=True, exist_ok=True)

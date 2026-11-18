@@ -5,9 +5,13 @@ Vorgänger und Lernarchiv: `VisionLLMmini` (YOLO-Kaskade, Pose, MediaPipe-Hände
 
 ## So arbeiten wir
 
-Jeder Schritt läuft so ab: **Lesen** (mit Leitfrage) → **Vorhersage** (im Kopf) → **Teilaufgabe** (du schreibst) →
-**Review** (Rückfragen, abgestufte Hinweise) → **Experiment**.
-Wird eine Phase übersprungen, gibt es einen Hinweis.
+**Seit M6 (Nov 2026): schneller vorankommen, trotzdem verstehen.** Claude baut einen Schritt und erklärt danach den Code:
+was jedes Teil tut, warum es so gebaut ist und welche Alternative verworfen wurde. Pro Schritt läuft es so ab:
+**Vorhersage** (du tippst vorher, was rauskommt) → **Bauen** (Claude) → **Erklärung** (Code-Rundgang, deine Rückfragen) →
+**Experiment** (laufen lassen, Ergebnis mit deiner Vorhersage vergleichen).
+Selbst geschrieben wird nur noch, wo es sich besonders lohnt: kleine Teilaufgaben zu einem neuen Konzept, als Angebot.
+
+Bis M5 lief jeder Schritt so: Lesen → Vorhersage → Teilaufgabe (du schreibst) → Review → Experiment.
 
 Vor jeder größeren Stufe recherchieren wir kurz den aktuellen Stand, den VRAM-Bedarf und die Lizenzen, weil sich das Feld schnell bewegt.
 
@@ -30,7 +34,7 @@ Vor jeder größeren Stufe recherchieren wir kurz den aktuellen Stand, den VRAM-
 |---|---|---|
 | 1 Kleiderschrank | **M1** Freistellen + Beschreiben | `analyze.py foto.jpg` → PNG + JSON |
 | | **M2** Backend + Jobs + Tests | Upload per API, Attribute landen in SQLite |
-| | **M3** Mobile Web-Frontend (Retro) | Am Handy fotografieren → Teil erscheint im Schrank |
+| | **M3** Mobile Web-Frontend | Am Handy fotografieren → Teil erscheint im Schrank |
 | 2 Training + Data Science | **M4** Testdatensatz + VLM messen | Genauigkeit pro Attribut, die Messlatte |
 | | **M5** Embeddings | Ähnliche Teile, Textsuche, Zero-Shot |
 | | **M6** Eigener Klassifikator | Eigenes Modell vs. VLM auf demselben Testset |
@@ -102,6 +106,8 @@ Gleiches Muster wie `frage_vlm` aus `vlm_hand.py`, aber jetzt hinter einem Proto
 **Neu:** mobile-first CSS, Kamera-Upload im Browser (`<input type="file" accept="image/*" capture>`), Status-Polling, Zugriff im Heimnetz.
 **Design:** schlicht gebaut (FastAPI-Templates + htmx oder Vanilla JS), aber mit eigenem Charakter, z. B. Retro-OS, Pixel-Schrift
 oder Kaufhauskatalog. Die Richtung legen wir zu Beginn von M3 fest.
+**Nachtrag (14.11.2026):** Der Retro-OS-Look (98.css) wurde durch einen hellen, minimalistischen Lookbook-Stil ("Atelier") ersetzt.
+Nur `app.css` und die Templates haben sich geändert; Routen und htmx-Logik sind gleich geblieben.
 **Du baust:** Galerie, Filter, Detailansicht mit **Korrigieren der Attribute**. Die Korrekturen sind später dein Ground Truth.
 **Fertig, wenn:** Du am Handy ein Teil fotografierst und es freigestellt und beschrieben im Schrank erscheint.
 
@@ -120,7 +126,7 @@ Macro-F1, Konfusionsmatrix.
   Hoodies/Strickjacken zwischen jacket und sweater und zweifelhafte „Brown“-Labels.
 
 **Offen, als Experiment nach M5:**
-1. Validierungsset aus den Trainingsgruppen ziehen. Prompt-Varianten nur dort testen, nie am Testset.
+1. ~~Validierungsset aus den Trainingsgruppen ziehen.~~ Erledigt in M5 (`scripts/make_validation_set.py`). Prompt-Varianten nur dort testen, nie am Testset.
 2. Prompt v2 mit festgelegten Definitionen: Polos zählen als `t-shirt`. `main_color` ist die Grundfarbe des Stoffs,
    Drucke und Akzente gehören in `pattern`, „multicolor“ nur ohne dominierende Farbe.
 3. Prompt v2 einfrieren und auf dem Testset vergleichen: 3B gegen ein größeres lokales VLM (Qwen2.5-VL 7B / Qwen3-VL),
@@ -140,12 +146,33 @@ Macro-F1, Konfusionsmatrix.
 
 Leitfrage: Wie viel bringt Mode-spezifisches Training, und wie nah kommt Zero-Shot an das VLM heran?
 
+**Entscheidung:** Verglichen werden SigLIP2 (`hf-hub:timm/ViT-B-16-SigLIP2-384`) und Marqo, beide über open_clip und damit über
+denselben `OpenClipEmbedder`. ZooClaw bräuchte einen eigenen Embedder für transformers und bleibt eine Option, falls die
+Ergebnisse knapp sind.
+
 - **Testset-Effekt:** Marqo misst auf „KAGL“, und das ist unser Datensatz (Fashion Product Images, Kaggle).
   Die Trainingsdaten sind nicht offengelegt. Gute Marqo-Zahlen auf unserem Testset sind deshalb eher zu optimistisch.
   ZooClaw ist auf einem nicht öffentlichen Katalog trainiert und nicht auf KAGL gemessen.
 - **Vergleichszahlen der Hersteller sind selbst gemessen.** Unabhängig (LookBench) zeigt sich nur: Mode-Feintuning schlägt allgemeine Modelle.
 - Marqo-FashionSigLIP 2 ist nicht frei verfügbar.
 - **Speicherung:** keine Vektordatenbank, ein numpy-Array reicht (30.000 × 768 ≈ 90 MB, Suche = ein Matrixprodukt).
+
+**Teil 1 erledigt (Nov 2026): Zero-Shot.** `OpenClipEmbedder` und `ZeroShotAttributeRecognizer` gebaut, Ergebnisse im
+[README](README.md#zero-shot-mit-embeddings-m5). Was dabei aufgefallen ist:
+- Zero-Shot schlägt das VLM bei category (93 % gegen 86 %) und main_color (75 % gegen 67 %), bei etwa 100-facher Geschwindigkeit.
+- Marqo und SigLIP2 liegen gleichauf. Marqo ist dreimal schneller und wird deshalb der Standard.
+- Die Formulierung der Klassentexte zählt: „a photo of a t-shirt“ und „a photo of a shirt“ liegen im Textraum fast
+  aufeinander, das bloße Wort trennt sie. Getunt nur auf dem Validierungsset, danach einmal auf dem Testset gemessen.
+- Gewinne auf dem Validierungsset schrumpfen auf dem Testset (Farbe: +3 → +1 Punkt). Genau dafür trennt man die Sets.
+- Größter verbleibender Kategoriefehler: Pullover → Jacke (20 %).
+
+**Teil 2 erledigt: App-Integration.** Der Worker speichert das Marqo-Embedding des freigestellten Bildes in SQLite
+(`embedding` als float32-Bytes, dazu `embedding_model`, weil Vektoren verschiedener Modelle nicht vergleichbar sind).
+Die Detailansicht zeigt „Ähnliche Teile“, die Galerie hat eine Textsuche. Brute Force (ein Matrixprodukt) reicht bei
+ein paar hundert Teilen; bei Millionen bräuchte man einen Vektorindex wie pgvector/HNSW.
+- Deutsche Suchtexte funktionieren: „rotes kariertes Hemd“ findet dasselbe wie „red checked shirt“.
+- Die Suche findet nie „nichts“, nur weniger Ähnliches. Deshalb höchstens 12 Treffer.
+- Noch offen: Erkenner in der App von VLM auf Zero-Shot umstellen? Zero-Shot ist genauer und schneller, erkennt aber keine Marke.
 
 ### M6 – Eigener Attribut-Klassifikator (3 Sessions)
 **Neu:** Transfer Learning, Linear Probe auf Embeddings (zuerst!), Feintuning eines kleinen Backbones, Augmentation, Overfitting.
@@ -155,6 +182,73 @@ Dein Modell ist eine weitere Implementierung von `AttributeRecognizer`.
 **Reihenfolge:** Linear Probe auf dem besten M5-Modell → nur wenn nötig LoRA-Feintuning (passt auf 8 GB) → volles Feintuning eher nicht
 (kontrastives Training braucht große Batches). Trainiert wird nur auf den Trainingsgruppen aus `split.parquet`.
 Achtung: Training auf Shopfotos verbessert nicht automatisch die Erkennung auf Handyfotos.
+
+**Lernkurve (Nov 2026):** Linear Probe auf Marqo-Features, Validierungsgenauigkeit bei n Beispielen pro Klasse
+(Mittel über 3 Seeds, Bild: `data/evaluation/learning_curve.png`). Zero-Shot auf demselben Validierungsset in Klammern.
+
+| Attribut | 5 | 20 | 50 | 100 | 500 | Zero-Shot |
+|---|---|---|---|---|---|---|
+| category | 0,81 | 0,92 | 0,95 | 0,97 | 0,98 | (0,96) |
+| main_color | 0,37 | 0,55 | 0,67 | 0,73 | 0,79 | (0,80) |
+| formality | 0,87 | 0,85 | 0,89 | 0,89 | 0,92 | (0,82) |
+
+- **category:** Ab etwa 100 Beispielen pro Klasse schlägt der Probe Zero-Shot, danach flacht die Kurve ab.
+- **main_color:** Selbst mit 500 Beispielen pro Klasse nicht besser als Zero-Shot. Für Farben trägt der Text
+  („a photo of a red …“) offenbar mehr Wissen bei als ein paar hundert gelabelte Bilder.
+- **formality:** Schon mit 5 Beispielen über Zero-Shot. Die Kurve wackelt, weil das Validierungsset hier klein ist.
+- Folge für die App: pro Attribut das jeweils bessere Verfahren nehmen, nicht ein Verfahren für alles.
+
+**Teil 1 erledigt: Probe als Erkenner.** `train_probe.py --save` wählt pro Attribut das beste C auf dem Validierungsset und
+speichert den Probe nur, wenn er Zero-Shot schlägt (`data/models/probes_<modell>.joblib`). `ProbeAttributeRecognizer`
+bettet das Bild einmal ein, fragt die gespeicherten Probes und für alle anderen Attribute Zero-Shot.
+- Mit **allen** Trainingsdaten (statt höchstens 500 pro Klasse wie in der Lernkurve) schlägt der Probe Zero-Shot auch bei
+  main_color knapp: 0,83 gegen 0,80. Auf Validierungsbildern: category 0,98, main_color 0,83, formality 0,94, 0,01 s pro Bild.
+- formality hat nur 100 Validierungsbeispiele; C=100 gewinnt dort mit 0,94 gegen 0,92, das ist im Rauschen.
+
+**Teil 2 erledigt: Partielles Feintuning** (`scripts/finetune.py`, RTX 2070). Marqo-Bildturm plus je ein Linear-Kopf pro
+Attribut; nur die letzten n der 12 ViT-Blöcke lernen. Zwei Lernraten (Köpfe 1e-3, Blöcke 2e-5), Warmup + Kosinus,
+Mixed Precision (float16), Augmentation nur Zuschnitt + Spiegeln (keine Farbänderung, main_color ist ein Label).
+
+| Lauf | trainiert | VRAM | Zeit | Val-Loss min → Ende | category | main_color | formality |
+|---|---|---|---|---|---|---|---|
+| Probe | 0,03 M | – | Sekunden | – | 0,980 | 0,826 | 0,94 |
+| 2 Blöcke, 5 Epochen | 21 M | 1,6 GB | 8 min | 1,21 → 1,61 | 0,977 | 0,846 | 0,95 |
+| 4 Blöcke, 3 Epochen | 36 M | 2,5 GB | 6,5 min | 1,22 → 1,38 | 0,980 | 0,844 | 0,94 |
+| 2 Blöcke + Label Smoothing 0,1 | 21 M | 1,6 GB | 8 min | 1,18 → 1,31 | 0,980 | 0,839 | 0,95 |
+| LoRA Rang 8 (qkv + proj, alle 12 Blöcke), 5 Epochen | 0,46 M | 3,8 GB | 13 min | 1,12 → 1,17 | 0,980 | 0,840 | 0,93 |
+
+- Feintuning schlägt den Probe bei main_color um ~2 Punkte, bei category gleichauf. Unterschiede zwischen den Läufen
+  liegen im Rauschen (main_color 0,839 vs. 0,846 = 4 von 570 Bildern).
+- **Overfitting am Loss ablesen:** Der Val-Loss steigt ab Epoche 2, obwohl die Genauigkeit weiter steigt. Das Modell
+  wird bei seinen Fehlern immer selbstsicherer. Label Smoothing bremst das deutlich (1,61 → 1,31), verhindert es aber nicht.
+- **Falle:** `nn.CrossEntropyLoss(weight=..., label_smoothing=...)` gewichtet den verschmierten Anteil mit dem Gewicht
+  *jeder* Klasse. Mit Rock = 44 kostete eine perfekt richtige T-Shirt-Antwort einen Loss von 32, category fiel auf 0,68.
+  Symptom: Train-Loss 5 statt 0,5. Lösung: eigene `SmoothedCrossEntropy`, die nur mit dem Gewicht der echten Klasse gewichtet.
+- Mehr freie Blöcke kosten VRAM, bringen hier aber kaum Genauigkeit.
+- **LoRA** (selbst geschrieben, `LoRALinear`): W bleibt eingefroren, gelernt wird die Änderung als B·A mit Rang 8.
+  50-mal weniger trainierte Gewichte, aber **mehr VRAM und doppelt so langsam** wie 2 freie Blöcke: Der Gradient muss
+  durch alle 12 Blöcke zurück, also müssen alle Zwischenergebnisse gespeichert bleiben. LoRA spart Optimizer-Speicher und
+  Dateigröße (die Änderung wäre ~2 MB statt 370 MB), nicht Aktivierungsspeicher. Den Nutzen hat es bei großen Modellen,
+  wo schon die Gewichte samt Optimizer nicht in den Speicher passen.
+- LoRA hat den niedrigsten Val-Loss aller Läufe, ohne Smoothing: die kleine Änderung kann weniger auswendig lernen.
+  Die Genauigkeit liegt aber gleichauf mit den anderen.
+
+**Teil 3 erledigt (Nov 2026): Vergleich auf dem Testset** – damit ist M6 laut „Fertig, wenn“ erledigt.
+Ergebnis im [README](README.md#eigener-klassifikator-m6). Kurz: Probe und Feintuning schlagen VLM und Zero-Shot klar bei
+category (96 % gegen 86 / 93 %) und formality, bei main_color nur knapp (76–77 % gegen 75 %). Feintuning gegen Probe ist
+nur bei formality ein gesicherter Unterschied. Vom Validierungs- zum Testset fallen alle ab, die trainierten bei der
+Farbe am stärksten: Was man auf einem Set auswählt, misst man dort zu gut.
+
+**Noch offen, bevor es mit M7 weitergeht:**
+1. ~~In die App~~ erledigt: Der Worker nutzt das Feintuning (Fallback Zero-Shot, falls der Checkpoint fehlt).
+   Die Marke bleibt vorerst leer und wird von Hand eingetragen.
+2. ~~Handyfotos prüfen~~ zurückgestellt (Nov 2026). Offen bleibt damit, ob die Shopfoto-Genauigkeit auf eigenen
+   Fotos hält; das zeigt sich spätestens beim Benutzen der App.
+
+**M6 abgeschlossen.**
+
+Später möglich: dieselben Köpfe einmal in **Keras 3** (mit PyTorch als Unterbau, weil TensorFlow unter Windows keine GPU
+mehr unterstützt), um zu sehen, was `compile()`/`fit()` einem abnehmen.
 
 ### M7 – Verkleinern (1–2 Sessions)
 **Neu:** Quantisierung (z. B. int8 mit ONNX Runtime), Distillation (das VLM als Lehrer).

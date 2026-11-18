@@ -63,3 +63,16 @@ def test_same_seed_same_test_set():
     _, first = build_test_set(products, n_per_class=10, seed=1)
     _, second = build_test_set(products, n_per_class=10, seed=1)
     pd.testing.assert_frame_equal(first, second)
+
+
+def test_validation_groups_come_from_training_groups_only():
+    from wardrobe.evaluation.split import build_validation_set
+
+    products = make_products(80, ["Black", "White", "Red"])
+    split, _ = build_test_set(products, n_per_class=10)
+    new_split, validation_set = build_validation_set(products, split, n_per_class=5)
+    changed = new_split.merge(split, on="id", suffixes=("", "_old"))
+    assert (changed.loc[changed["split_old"] == "test", "split"] == "test").all()
+    assert (changed["split"] == "validation").any()
+    validation_set = validation_set.merge(new_split, on="id")
+    assert (validation_set["split"] == "validation").all()

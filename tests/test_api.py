@@ -6,7 +6,7 @@ from PIL import Image
 from sqlmodel import Session
 
 from wardrobe.api.main import app, get_session, get_storage
-from wardrobe.storage.database import create_db
+from wardrobe.storage.database import Garment, create_db
 from wardrobe.storage.files import FileStorage
 
 CORRECTION = {"category": "pants", "main_color": "blue", "pattern": "solid"}
@@ -66,3 +66,18 @@ def test_correction_with_invalid_value_is_rejected(client):
     garment = upload(client)
     response = client.patch(f"/garments/{garment['id']}", json={**CORRECTION, "category": "Hose"})
     assert response.status_code == 422
+
+
+def test_garment_with_embedding_is_listed_without_the_bytes(client):
+    garment = upload(client)
+    session = next(app.dependency_overrides[get_session]())
+    stored = session.get(Garment, garment["id"])
+    stored.embedding = bytes([0, 200, 255, 1])  # not valid UTF-8, like a real float32 vector
+    stored.embedding_model = "fake-embedder"
+    session.add(stored)
+    session.commit()
+
+    response = client.get("/garments")
+    assert response.status_code == 200
+    assert "embedding" not in response.json()[0]
+    assert response.json()[0]["embedding_model"] == "fake-embedder"

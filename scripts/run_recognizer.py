@@ -1,42 +1,80 @@
-"""Run an attribute recognizer over every image of the frozen test set and store its answers.
+"""Run an attribute recognizer over every image of the test (or validation) set and store its answers.
 
-Each answer is appended as one JSON line to data/evaluation/<run>.jsonl as soon as it arrives, so an
-interrupted run continues where it stopped when started again.
+Each answer is appended as one JSON line to data/evaluation/<run>.jsonl (<run>_validation.jsonl) as soon as
+it arrives, so an interrupted run continues where it stopped when started again.
 
-Run from the project root: .venv/bin/python -m scripts.run_recognizer --model qwen2.5vl:3b
+Run from the project root:
+    .venv/bin/python -m scripts.run_recognizer --model qwen2.5vl:3b
+    .venv/bin/python -m scripts.run_recognizer --recognizer zero-shot --model hf-hub:Marqo/marqo-fashionSigLIP
+    .venv/bin/python -m scripts.run_recognizer --recognizer probe --model hf-hub:Marqo/marqo-fashionSigLIP --run probe
+        (needs the probes from: python -m scripts.train_probe --save)
+    .venv/bin/python -m scripts.run_recognizer --recognizer finetuned:marqo-last2-ls --model hf-hub:Marqo/marqo-fashionSigLIP --run finetuned
+        (needs data/models/finetune_marqo-last2-ls.pt from scripts.finetune)
+    add --set validation while tuning prompts or class texts
 """
 import argparse
 import json
+import re
 import time
 from pathlib import Path
 
 import pandas as pd
 
 from wardrobe.evaluation.dataset import load_images
-from wardrobe.models.attribute_recognizer import OllamaAttributeRecognizer
+from wardrobe.models.attribute_recognizer import AttributeRecognizer, OllamaAttributeRecognizer
 from scripts.make_test_set import TEST_SET_PATH
+from scripts.make_validation_set import VALIDATION_SET_PATH
 
 RESULTS_DIR = Path("data/evaluation")
+SET_PATHS = {"test": TEST_SET_PATH, "validation": VALIDATION_SET_PATH}
+
+
+def result_path(run: str, set_name: str) -> Path:
+    suffix = "" if set_name == "test" else f"_{set_name}"
+    return RESULTS_DIR / f"{run}{suffix}.jsonl"
+
+
+def make_recognizer(kind: str, model: str) -> AttributeRecognizer:
+    if kind == "ollama":
+        return OllamaAttributeRecognizer(model)
+    # Imported here so a VLM run does not need torch.
+    from wardrobe.models.embedder import OpenClipEmbedder
+    from wardrobe.models.probe import ProbeAttributeRecognizer
+    from wardrobe.models.zero_shot import ZeroShotAttributeRecognizer
+    from wardrobe.training.linear_probe import PROBES_DIR, load_probes, probes_path
+
+    if kind == "zero-shot":
+        return ZeroShotAttributeRecognizer(OpenClipEmbedder(model))
+    if kind == "probe":
+        _, probes = load_probes(probes_path(model))
+        return ProbeAttributeRecognizer(OpenClipEmbedder(model), probes)
+    # "finetuned:<run>" -> data/models/finetune_<run>.pt; the original embedder answers pattern and material.
+    from wardrobe.models.finetuned import FinetunedAttributeRecognizer
+    return FinetunedAttributeRecognizer(PROBES_DIR / f"finetune_{kind.split(':', 1)[1]}.pt", OpenClipEmbedder(model))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--model", default="qwen2.5vl:3b")
+    parser.add_argument("--recognizer", default="ollama",
+                        help="ollama, zero-shot, probe or finetuned:<run> (e.g. finetuned:marqo-last2-ls)")
+    parser.add_argument("--model", default="qwen2.5vl:3b", help="Ollama model or open_clip model name")
     parser.add_argument("--run", help="name of the result file, defaults to the model name")
+    parser.add_argument("--set", choices=SET_PATHS, default="test", help="which frozen sample to run on")
     args = parser.parse_args()
 
-    run = args.run or args.model.replace(":", "-")
-    output = RESULTS_DIR / f"{run}.jsonl"
+    # "hf-hub:Marqo/marqo-fashionSigLIP" -> "marqo-fashionSigLIP", "qwen2.5vl:3b" -> "qwen2.5vl-3b"
+    run = args.run or re.sub(r"[:/]", "-", args.model.removeprefix("hf-hub:").split("/")[-1])
+    output = result_path(run, args.set)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    ids = sorted(pd.read_parquet(TEST_SET_PATH)["id"].unique())
+    ids = sorted(pd.read_parquet(SET_PATHS[args.set])["id"].unique())
     done = set()
     if output.exists():
         done = {json.loads(line)["id"] for line in output.read_text(encoding="utf-8").splitlines()}
     todo = [id for id in ids if id not in done]
-    print(f"{len(ids)} test images, {len(done)} already done, {len(todo)} to go -> {output}", flush=True)
+    print(f"{len(ids)} {args.set} images, {len(done)} already done, {len(todo)} to go -> {output}", flush=True)
 
-    recognizer = OllamaAttributeRecognizer(args.model)
+    recognizer = make_recognizer(args.recognizer, args.model)
     images = load_images(todo)
     with output.open("a", encoding="utf-8") as file:
         for number, id in enumerate(todo, start=1):

@@ -12,9 +12,10 @@ from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 from sqlmodel import Session, func, select
 
-from wardrobe.api.dependencies import get_session, get_storage
+from wardrobe.api.dependencies import get_embedder, get_session, get_storage
 from wardrobe.models.attributes import Category, Color, Formality, GarmentAttributes, Material, Pattern
-from wardrobe.services.garments import correct_garment, create_garment
+from wardrobe.models.embedder import Embedder
+from wardrobe.services.garments import correct_garment, create_garment, search_garments, similar_garments
 from wardrobe.storage.database import Garment
 from wardrobe.storage.files import FileStorage
 
@@ -43,6 +44,10 @@ LABELS = {
     "pending": "Wartet", "processing": "In Arbeit", "done": "Fertig", "failed": "Fehler",
 }
 
+# A search always ranks every garment, even ones that fit badly, so only the best ones are shown.
+SEARCH_RESULTS = 12
+SIMILAR_RESULTS = 6
+
 templates = Jinja2Templates(directory=WEB_DIR / "templates")
 # Templates may only use the file name of a stored path: "data/cutouts/ab12.png" -> "ab12.png".
 # Path().name also handles Windows paths with backslashes, which matters on the server PC.
@@ -66,6 +71,8 @@ def gallery(
     session: Session = Depends(get_session),
     category: str | None = None,
     main_color: str | None = None,
+    q: str | None = None,
+    embedder: Embedder | None = Depends(get_embedder),
 ):
     # Newest first, so a fresh upload appears at the top. Empty filter values ("") mean "all".
     query = select(Garment).order_by(Garment.created_at.desc())
@@ -74,11 +81,17 @@ def gallery(
     if main_color:
         query = query.where(Garment.main_color == main_color)
     garments = session.exec(query).all()
+    if q and embedder is not None:
+        # Text search: best match first instead of newest first. The filters still apply, and garments
+        # without an embedding (not processed yet) cannot be found.
+        allowed = {garment.id for garment in garments}
+        ranked = search_garments(session, embedder, q, k=None)
+        garments = [garment for garment in ranked if garment.id in allowed][:SEARCH_RESULTS]
     # The dict holds the variables the template can use.
     return templates.TemplateResponse(
         request,
         "gallery.html",
-        {"garments": garments, "options": OPTIONS, "category": category, "main_color": main_color},
+        {"garments": garments, "options": OPTIONS, "category": category, "main_color": main_color, "q": q},
     )
 
 
@@ -105,7 +118,10 @@ def icon(request: Request, garment_id: int, session: Session = Depends(get_sessi
 @router.get("/items/{garment_id}")
 def edit_form(request: Request, garment_id: int, session: Session = Depends(get_session)):
     garment = find_garment(session, garment_id)
-    return templates.TemplateResponse(request, "edit.html", {"garment": garment, "options": OPTIONS})
+    similar = similar_garments(session, garment, k=SIMILAR_RESULTS)
+    return templates.TemplateResponse(
+        request, "edit.html", {"garment": garment, "options": OPTIONS, "similar": similar}
+    )
 
 
 @router.post("/items/{garment_id}")
