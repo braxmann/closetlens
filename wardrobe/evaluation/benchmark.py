@@ -36,3 +36,10 @@ def measure_latency(
         "median_ms": statistics.median(timings),
         "p90_ms": float(np.percentile(timings, 90)),
     }
+
+
+def cosine_similarity(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Row-wise cosine similarity of two embedding batches: 1.0 means same direction, i.e. unchanged."""
+    a = a / np.linalg.norm(a, axis=1, keepdims=True)
+    b = b / np.linalg.norm(b, axis=1, keepdims=True)
+    return (a * b).sum(axis=1)

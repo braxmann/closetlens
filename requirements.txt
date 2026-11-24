@@ -36,3 +36,7 @@ protobuf
 
 # M6: training
 matplotlib
+
+# M7: ONNX export (onnxscript is needed by torch's exporter) and int8 quantization (onnxruntime comes with rembg)
+onnx
+onnxscript
