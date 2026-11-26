@@ -3,7 +3,7 @@
 Ein digitaler Kleiderschrank: Kleidung fotografieren, automatisch freistellen und beschreiben lassen,
 durchsuchen, Outfits vorschlagen – und langfristig Outfits an einem 3D-Avatar anprobieren.
 
-> Status: **M6 – Eigener Klassifikator** abgeschlossen (feingetuntes Marqo erkennt die Attribute in der App), als Nächstes M7 (siehe [LERNPFAD.md](LERNPFAD.md))
+> Status: **M7 – Verkleinern** fast fertig (Distillation und int8 gemessen, Marqo-int8 fehlt noch), als Nächstes M8 (siehe [LERNPFAD.md](LERNPFAD.md))
 
 ## Architektur
 
@@ -181,4 +181,63 @@ python -m scripts.finetune --label-smoothing 0.1 --run marqo-last2-ls   # [--met
 python -m scripts.run_recognizer --recognizer probe --model hf-hub:Marqo/marqo-fashionSigLIP --run probe
 python -m scripts.run_recognizer --recognizer finetuned:marqo-last2-ls --model hf-hub:Marqo/marqo-fashionSigLIP --run finetuned
 python -m scripts.evaluate --run probe           # bzw. --run finetuned
+```
+
+## Verkleinern (M7)
+
+Wie viel Genauigkeit kostet ein kleineres, schnelleres Modell? Drei Wege, alle auf demselben Validierungsset gemessen:
+- **Weniger Bits pro Gewicht:** fp16 (2 statt 4 Bytes) und int8 (256 Stufen) mit ONNX Runtime
+  ([export.py](wardrobe/compression/export.py)). Dynamisch rundet nur die Gewichte vorab, statisch auch die
+  Zwischenwerte, mit Skalen aus 100 Trainingsbildern.
+- **Ein kleineres Modell (Distillation):** MobileNetV3 mit 4,2 M statt 93 M Parametern lernt von den Labels und von den
+  Antworten des großen Modells ([distill.py](wardrobe/training/distill.py)). Lehrer ist Marqo mit den Linear Probes aus M6.
+- **Vergleich:** derselbe Schüler einmal ohne Lehrer (`alpha=0`), einmal mit (`alpha=0.7`, Temperatur 4).
+
+![Größe gegen Genauigkeit](docs/m7_curve.png)
+
+| Modell | Format | Größe | CPU | MPS | category | main_color | formality |
+|---|---|---|---|---|---|---|---|
+| Lehrer: Marqo + Probe | PyTorch fp32 | 372 MB | 46 ms | 18 ms | 0,980 | 0,835 | 0,910 |
+| | fp16 | 186 MB | 189 ms | 17 ms | 0,980 | 0,835 | 0,910 |
+| | ONNX fp32 | 373 MB | 87 ms | – | 0,980 | 0,835 | 0,910 |
+| Schüler mit Lehrer | ONNX fp32 | 17 MB | 5,0 ms | 6,0 ms | 0,954 | 0,814 | 0,890 |
+| | ONNX int8 statisch | 4,7 MB | **2,2 ms** | – | 0,928 | 0,796 | 0,810 |
+| Schüler ohne Lehrer | ONNX fp32 | 17 MB | 4,7 ms | 5,8 ms | 0,928 | 0,805 | 0,880 |
+| | ONNX int8 statisch | 4,7 MB | 2,2 ms | – | 0,913 | 0,770 | 0,810 |
+
+Zeiten pro Bild (Batch 1, Median) auf einem Mac: CPU mit ONNX Runtime, MPS = Apple-GPU mit PyTorch. Auf einer RTX 2070
+braucht das feingetunte Marqo 11 ms (fp32) bzw. 13 ms (fp16), mit identischer Genauigkeit.
+
+**Ergebnisse**
+- **fp16 kostet nichts:** gleiche Antworten, halbe Größe. Schneller wird es nur auf passender Hardware, auf der CPU ist
+  fp16 vier- bis zehnmal *langsamer*, weil dort keine fp16-Rechenwerke sitzen.
+- **Distillation hilft:** Der Schüler ohne Lehrer macht bei category 3,6-mal so viele Fehler wie der Lehrer, mit Lehrer
+  nur 2,3-mal so viele (0,928 → 0,954). Er lernt auch schneller: nach Epoche 1 schon 0,90 statt 0,83.
+- **Der Schüler mit int8** ist 80-mal kleiner und auf der CPU 20-mal schneller als der schnellste Lehrer-Lauf (46 ms)
+  und verliert bei category 5 Punkte.
+- **Dynamisches int8 zerstört MobileNet** (category 0,13): Es ist für Transformer gebaut. Bei Faltungen werden die
+  Zwischenwerte pro Bild über Min/Max gerundet, ein Ausreißer macht die Stufen unbrauchbar grob.
+- **Auch statisches int8 braucht die richtige Kalibrierung:** Mit MinMax fiel category auf 0,63, mit mehr
+  Kalibrierungsbildern sogar auf 0,14 (mehr Chancen für Ausreißer). Percentile, das die äußersten 0,001 % ignoriert, hält 0,93.
+- **Das Format entscheidet über die Zeit:** MobileNet in PyTorch auf der Mac-CPU 113 ms, in ONNX Runtime 5 ms.
+
+**Methodik**
+- Validierungsset (783 Bilder), nicht das Testset: Kalibrierungsmethode und `alpha` wurden hier ausgewählt.
+- Jede Variante wird genau einmal trainiert (ein Seed). Der category-Effekt der Distillation ist groß genug, um
+  wahrscheinlich echt zu sein; bei main_color und formality (100 Bilder, 1 Bild = 1 Punkt) liegt er im Rauschen.
+- Lehrer-Logits kommen aus den gecachten Marqo-Features (unaugmentiert), der Schüler sieht zufällige Ausschnitte.
+  Der Lehrer hat die Trainingsbilder selbst gesehen und ist dort etwas zu selbstsicher.
+
+**Einschränkungen**
+- int8 für Marqo ist noch nicht gemessen (zu speicherhungrig für den Mac, läuft auf dem PC).
+- Die Schüler kennen nur category, main_color und formality. Pattern, Material, Textsuche und ähnliche Teile brauchen
+  weiterhin Marqo.
+
+**Reproduzieren**
+```bash
+python -m scripts.train_probe --save                               # Lehrer (braucht scripts.cache_features)
+python -m scripts.distill --alpha 0.0 --run mobilenet-labels       # Schüler ohne Lehrer
+python -m scripts.distill --alpha 0.7 --run mobilenet-distill      # Schüler mit Lehrer
+python -m scripts.benchmark [--models mobilenet-distill ...]       # Größe, Zeit, Genauigkeit -> m7_benchmark.csv
+python -m scripts.plot_m7                                          # docs/m7_curve.png
 ```
