@@ -254,6 +254,25 @@ mehr unterstützt), um zu sehen, was `compile()`/`fit()` einem abnehmen.
 **Neu:** Quantisierung (z. B. int8 mit ONNX Runtime), Distillation (das VLM als Lehrer).
 **Fertig, wenn:** Eine Tabelle oder Kurve zeigt, was dich jedes eingesparte MB an Genauigkeit kostet.
 
+**Stand (Nov 2026): fast fertig.** Tabelle und Kurve im [README](README.md#verkleinern-m7). Was dabei aufgefallen ist:
+- **Lehrer ist nicht das VLM**, sondern Marqo + Linear Probe: Seit M6 ist das deutlich besser als das VLM, und seine
+  Logits kommen in Sekunden aus den gecachten Features.
+- **Größe passt zur Rechnung:** 93 M Parameter × 4 / 2 / 1 Byte = 372 / 186 / ~95 MB.
+- **Kleiner ist nicht automatisch schneller:** fp16 auf der CPU 4–10× langsamer, int8 auf der CPU am schnellsten.
+  Die Hardware entscheidet, nicht das Format.
+- **Distillation:** Schüler (MobileNetV3, 4,2 M) category 0,928 ohne, 0,954 mit Lehrer (Lehrer 0,980). Vorhersage war
+  „4-mal so viele Fehler“, gemessen 3,6× ohne und 2,3× mit Lehrer.
+- **Fallen beim Quantisieren:** dynamisches int8 auf einem CNN (category 0,13); MinMax-Kalibrierung mit Ausreißern
+  (0,63 → mit mehr Bildern 0,14), Percentile behebt es (0,93). Der ONNX-Exporter schreibt Formnotizen (`value_info`),
+  die dem Quantisierer widersprechen; sie werden nach dem Export entfernt.
+- **Formality bei 2 Klassen:** scikit-learn liefert nur eine Zahl d pro Bild, als Logits wird daraus [0, d].
+- Den vollen Benchmark mit Marqo nicht auf dem Mac laufen lassen: mehrere Marqo-Kopien plus ONNX-Sessions füllen den Speicher.
+
+**Noch offen:**
+1. Am PC: `python -m scripts.benchmark` für Marqo-int8 (dynamisch und statisch) und das feingetunte Marqo,
+   danach `python -m scripts.plot_m7`.
+2. Optional: Schüler als `OnnxAttributeRecognizer` in die App (4,7 MB statt 372 MB), Marqo bliebe für Suche und Pattern.
+
 ### M8 – Outfits und Auswertungen (2 Sessions)
 **Neu:** Recommender-Grundlagen (Regeln + Embedding-Kompatibilität), Cold Start, einfache Statistik.
 **Fertig, wenn:** Die App 3 Outfits vorschlägt (passend zu Saison und Farben) und eine Statistikseite hat („Getragen“-Protokoll, „was ziehe ich nie an“).
